@@ -1,0 +1,6 @@
+PLANBUTTON         BITMAP                  "inclide\plan.bmp"
+TREE               BITMAP                  "inclide\tree.bmp"
+SQL                BITMAP                  "inclide\sql.bmp"
+BUG                BITMAP                  "inclide\bug.bmp"
+PROLIVKA           BITMAP                  "inclide\prolivka.bmp"
+REPORT             BITMAP                  "inclide\report.bmp"
