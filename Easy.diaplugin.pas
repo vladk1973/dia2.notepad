@@ -25,7 +25,9 @@ type
     procedure DoNppnToolbarModification; override;
     procedure DoNppnCharAdded(const ASCIIKey: Integer); override;
     procedure DoNppnModified(sn: PSCNotification); override;
+    {$IFDEF WIN64}
     procedure DoNppnUpdateAutoSelection(P: PAnsiChar); override;
+    {$ENDIF}
 
     procedure ShowAutocompletion(const TableName: string; Indx: TStringList);
     procedure ShowProcedureList;
@@ -455,6 +457,7 @@ begin
   end;
 end;
 
+{$IFDEF WIN64}
 procedure TdiaPlugin.DoNppnUpdateAutoSelection(P: PAnsiChar);
 var
   S: AnsiString;
@@ -476,5 +479,6 @@ begin
       end;
     end;
 end;
+{$ENDIF}
 
 end.
