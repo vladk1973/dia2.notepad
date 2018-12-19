@@ -431,8 +431,20 @@ begin
 end;
 
 procedure TPrForm.OnClearHistoryPopupMenu(Sender: TObject);
+var
+  Registry : TRegistry;
 begin
+//ShowMessage('aa');
+
   HistoryPopupMenu.Items.Clear;
+  FPathHistory.Clear;
+  Registry := TRegistry.Create(KEY_ALL_ACCESS);
+  try
+    Registry.RootKey := HKEY_CURRENT_USER;
+    Registry.DeleteKey(cnstDllKey + '\' + cnstPrHistKey);
+  finally
+    Registry.Free;
+  end;
 end;
 
 procedure TPrForm.SetExternalServer(const Value: String);

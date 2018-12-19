@@ -67,6 +67,7 @@ type
     tabPopupMenu: TPopupMenu;
     DeleteTabAction: TAction;
     N6: TMenuItem;
+    ActivityIndicator1: TActivityIndicator;
     procedure FormCreate(Sender: TObject);
     procedure SQLActionExecute(Sender: TObject);
     procedure CopyAllGridActionExecute(Sender: TObject);
@@ -110,15 +111,15 @@ type
     const MaxTabIndex = 10;
     procedure WMThreadMessage(var Msg: TMessage); message WM_USER_MESSAGE_FROM_THREAD;
 
-    procedure FillResultGrid(Results: TObjectStrings);
+    procedure FillResultGrid(ScrollBox: TExScrollBox; Results: TObjectStrings);
 
     procedure GridButtonClick(Sender: TObject);
 
     procedure SetCurrentNode(const Value: TTreeNode);
-    function GetResultPanel: TExScrollBox;
+    function GetCurrentPanel: TExScrollBox;
   protected
     property CurrentNode: TTreeNode read FCurrentNode write SetCurrentNode;
-    property ResultPanel: TExScrollBox read GetResultPanel;
+    property CurrentPanel: TExScrollBox read GetCurrentPanel;
   public
     procedure DoSql(const SqlText: string);
     procedure DoSqlIndex(const SqlText: string);
@@ -307,7 +308,7 @@ begin
   Obj := TSqlExecutorObject(TAction(Sender).Tag);
   if Obj.ErrMessage = '' then
   begin
-    FillResultGrid(Obj.Grids);
+    FillResultGrid(Obj.ScrollBox,Obj.Grids);
     SetItem(Obj.Description);//Добавляем пункт меню
     Show;
   end
@@ -404,10 +405,24 @@ begin
 end;
 
 procedure TlogForm.DoSql(const SqlText: string);
+  function GetNumberActivityIndicator: string;
+  var
+    j,k: integer;
+  begin
+    k := 0;
+    for j := 0 to Self.ComponentCount - 1 do
+      if Components[j] is TActivityIndicator then inc(k);
+    Result := IntToStr(k);
+  end;
 var
   SqlThread: TSqlExecutorObject;
   CString,CName: string;
+  FResultPanel: TExScrollBox;
+  i: integer;
+  ActivityIndicator: TActivityIndicator;
 begin
+  FResultPanel := CurrentPanel;
+
   CString := BasesPanel.ConnectionString;
   CName := Format(cnstSqlExec,[
                                BasesPanel.CurrentServer,
@@ -416,12 +431,26 @@ begin
                                ]);
   if CString = '' then
   begin
-    CString := ResultPanel.ConnectionString;
-    CName   := ResultPanel.Description;
+    CString := FResultPanel.ConnectionString;
+    CName   := FResultPanel.Description;
   end;
 
   if CString <> '' then
   begin
+    FResultPanel.ClearComponents;
+
+    ActivityIndicator := TActivityIndicator.Create(nil);
+    ActivityIndicator.Parent := FResultPanel;
+    ActivityIndicator.Name := 'Indicator' + GetNumberActivityIndicator;
+    ActivityIndicator.Left := 5;
+    ActivityIndicator.Top := 5;
+    ActivityIndicator.IndicatorSize := aisLarge;
+    ActivityIndicator.Visible := True;
+    ActivityIndicator.Animate := True;
+    FResultPanel.InsertComponent(ActivityIndicator);
+    FResultPanel.Hint := SqlText.Trim;
+    FResultPanel.ShowHint := True;
+
     SqlThread := TSqlExecutorObject.Create;
     SqlThread.Description := SqlText.Trim;
     SqlThread.BdType := BasesPanel.BdType;
@@ -430,6 +459,7 @@ begin
     SqlThread.ConnectionString := CString;
     SqlThread.OnAfterAction := AfterSQLAction;
     SqlThread.WinHandle := self.Handle;
+    SqlThread.ScrollBox := FResultPanel;
     SqlThread.Start;
   end
   else
@@ -449,8 +479,8 @@ begin
                                ]);
   if CString = '' then
   begin
-    CString := ResultPanel.ConnectionString;
-    CName   := ResultPanel.Description;
+    CString := CurrentPanel.ConnectionString;
+    CName   := CurrentPanel.Description;
   end;
 
   if CString <> '' then
@@ -514,41 +544,42 @@ begin
     end;
 end;
 
-procedure TlogForm.FillResultGrid(Results: TObjectStrings);
+procedure TlogForm.FillResultGrid(ScrollBox: TExScrollBox; Results: TObjectStrings);
 var i,j,k,maxWidthGrid,aTop: integer;
-    Temp: TComponent;
     Grid: TStringGridEx;
+    FResultPanel: TExScrollBox;
 begin
+  FResultPanel := CurrentPanel;
+  for i := 0 to TabControl.Tabs.Count-2 do
+    if TExScrollBox(TabControl.Tabs.Objects[i]) = ScrollBox then
+    begin
+      FResultPanel := ScrollBox;
+      TabControl.TabIndex := i;
+      break;
+    end;
+
   ResultLabel.Caption := Results.Name;
 
   maxWidthGrid := 0;
   Grid := nil;
   try
 
-    for i := ResultPanel.ControlCount - 1 downto 0 do
-    begin
-      Temp := ResultPanel.Controls[i];
-      if (Temp is TStringGrid) or (Temp is TButton) then
-      begin
-        ResultPanel.RemoveComponent(Temp);
-        Temp.Free;
-      end;
-    end;
-
-    ResultPanel.HorzScrollBar.Range := MaxInt;
-    ResultPanel.VertScrollBar.Range:= MaxInt;
-    ResultPanel.DisableAlign;
-    ResultPanel.Description := Results.Name;
-    ResultPanel.ConnectionString := Results.ConnectionString;
-
+    FResultPanel.ClearComponents;
+    FResultPanel.Hint := '';
+    FResultPanel.ShowHint := False;
+    FResultPanel.HorzScrollBar.Range := MaxInt;
+    FResultPanel.VertScrollBar.Range:= MaxInt;
+    FResultPanel.DisableAlign;
+    FResultPanel.Description := Results.Name;
+    FResultPanel.ConnectionString := Results.ConnectionString;
 
     Results.OwnsObjects := False;
     aTop := 0;
     for i := 0 to Results.Count - 1 do
     begin
       Grid := TStringGridEx(Results[i]);
-      Grid.Parent := ResultPanel;
-      ResultPanel.InsertComponent(Grid);
+      Grid.Parent := FResultPanel;
+      FResultPanel.InsertComponent(Grid);
 
       Grid.Align := alTop;
       //Grid.Color := clBlue;
@@ -597,7 +628,7 @@ begin
       Grid.Height := k+18;
 
 
-      //Max(k,ResultPanel.Width);
+      //Max(k,CurrentPanel.Width);
       maxWidthGrid := Max(maxWidthGrid,Grid.Width);
 
       //Grid.Top := aTop;
@@ -612,10 +643,10 @@ begin
 
     end;
 
-    ResultPanel.HorzScrollBar.Position := 0;
-    ResultPanel.HorzScrollBar.Range := maxWidthGrid;
-    ResultPanel.VertScrollBar.Position := 0;
-    ResultPanel.VertScrollBar.Range := aTop;
+    FResultPanel.HorzScrollBar.Position := 0;
+    FResultPanel.HorzScrollBar.Range := maxWidthGrid;
+    FResultPanel.VertScrollBar.Position := 0;
+    FResultPanel.VertScrollBar.Range := aTop;
 
     for k := Results.Count-1 downto 0 do
     begin
@@ -626,13 +657,14 @@ begin
     if Assigned(Grid) and Grid.CanFocus then Grid.SetFocus;
 
   finally
-    ResultPanel.EnableAlign;
-    ResultPanel.ShowMe;
-    //ResultPanel.Perform(WM_SETREDRAW, 1, 0);
+    FResultPanel.EnableAlign;
+    HideAllExcept(TabControl.TabIndex);
+
+    //FResultPanel.ShowMe;
   end;
 end;
 
-function TlogForm.GetResultPanel: TExScrollBox;
+function TlogForm.GetCurrentPanel: TExScrollBox;
 begin
   Result := TExScrollBox(TabControl.Tabs.Objects[TabControl.TabIndex]);
 end;

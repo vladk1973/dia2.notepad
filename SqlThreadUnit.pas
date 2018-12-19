@@ -5,7 +5,8 @@ interface
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.StrUtils,
   System.Win.ComObj, Data.DB, Data.Win.ADODB, WinApi.ADOInt, Vcl.Dialogs,
-  ConstUnit, Variants, ThreadUnit, StringGridsUnit, StringGridExUnit;
+  ConstUnit, Variants, ThreadUnit, StringGridsUnit, StringGridExUnit,
+  ExtScrollingWinControlUnit;
 
 type
   TSqlThreadObject = class(TThreadExecObject)
@@ -47,12 +48,14 @@ type
   TSqlExecutorObject = class(TSqlThreadObject)
   private
     FGrids: TStringGrids;
+    FScrollBox: TExScrollBox;
   protected
     procedure Execute; override;
   public
     constructor Create;
     destructor Destroy; override;
     property Grids: TStringGrids read FGrids;
+    property ScrollBox: TExScrollBox read FScrollBox write FScrollBox;
   end;
 
   TSqlIndexObject = class(TSqlThreadObject)
@@ -594,7 +597,7 @@ begin
                   Sk := VarToStr(V);
                 end;
               end;
-              FIndexes.Add(Format(cnstIndexTemplate,[S,StringReplace(Sk,' ','',[rfReplaceAll])]));
+              FIndexes.Add(Format(cnstIndexTemplate,[StringReplace(S,' ','',[rfReplaceAll]),StringReplace(Sk,' ','',[rfReplaceAll])]));
               rs.MoveNext;
             end;
     finally
