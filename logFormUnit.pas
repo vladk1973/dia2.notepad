@@ -68,6 +68,9 @@ type
     DeleteTabAction: TAction;
     N6: TMenuItem;
     ActivityIndicator1: TActivityIndicator;
+    N7: TMenuItem;
+    N13: TMenuItem;
+    DeclareVarsAction: TAction;
     procedure FormCreate(Sender: TObject);
     procedure SQLActionExecute(Sender: TObject);
     procedure CopyAllGridActionExecute(Sender: TObject);
@@ -97,6 +100,7 @@ type
     procedure DeleteTabActionUpdate(Sender: TObject);
     procedure DeleteTabActionExecute(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure DeclareVarsActionExecute(Sender: TObject);
   private
     msTreeView: TTreeViewEx;
     sybTreeView: TTreeViewEx;
@@ -138,6 +142,12 @@ uses
 
 
 {$R *.dfm}
+
+procedure TlogForm.DeclareVarsActionExecute(Sender: TObject);
+begin
+  if Self.ActiveControl is TStringGridEx then
+    TStringGridEx(Self.ActiveControl).DeclareVarsToClipboard;
+end;
 
 procedure TlogForm.DeleteTabActionExecute(Sender: TObject);
 var

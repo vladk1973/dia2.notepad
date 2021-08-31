@@ -5,7 +5,7 @@ interface
 uses
   System.SysUtils, Winapi.Windows, Winapi.Messages, Vcl.Clipbrd,
   scisupport, Vcl.Controls, System.Contnrs, Vcl.ComCtrls, Vcl.Forms, Vcl.Dialogs,
-  Vcl.Graphics, Vcl.Grids, Vcl.StdCtrls, System.StrUtils, System.Classes;
+  Vcl.Graphics, Vcl.Grids, Vcl.StdCtrls, System.StrUtils, System.Classes, System.Math;
 
 type
   TStringGridEx = class(TStringGrid)
@@ -30,6 +30,7 @@ type
     destructor Destroy; override;
     function CopyToClipboard: boolean;
     function CopyAllToClipboard: boolean;
+    function DeclareVarsToClipboard: boolean;
     property OnButtonClick: TNotifyEvent read FOnButtonClick write FOnButtonClick;
   end;
 
@@ -60,6 +61,77 @@ begin
   FButton.Transparent := True;
   FButton.LoadFromResourceName(HInstance,'PLANBUTTON');
   //FButton.Handle := LoadImage(HInstance, 'THEBUTTON', IMAGE_ICON, X, X, LR_DEFAULTCOLOR);
+end;
+
+function TStringGridEx.DeclareVarsToClipboard: boolean;
+var i,j, ilen, iMax, iPrec: integer;
+    S,S0,S1: string;
+    Strings: TStringList;
+  function PADR(Src: string; Lg: Integer): string;
+  begin
+    if iPrec = 4 then
+    begin
+      Result := '@' + Src;
+      Result := Result.PadRight(Lg+1);
+    end
+    else
+    begin
+      Result := Src;
+      Result := Result.PadRight(Lg);
+    end;
+  end;
+begin
+  Result := False;
+  if Focused then
+  begin
+    S := '';
+
+    if RowCount > 1 then
+      for i := 0 to ColCount - 1 do
+        if Cells[i,0] = 'Prec' then
+        begin
+          iPrec := i;
+          break;
+        end;
+    if not iPrec in [3,4] then Exit;
+
+    ilen := 0;
+    if RowCount > 1 then
+      for i := 1 to RowCount-1 do
+        ilen := Max(length(Cells[0,i]),ilen);
+
+    if ilen = 0  then Exit;
+
+    if ColCount > 4 then
+    begin
+      Strings := TStringList.Create;
+      iMax := 0;
+      try
+        for i := 1 to RowCount-1 do
+        begin
+          S0 := PADR(Cells[0,i],ilen+1);
+          S1 := Cells[1,i];
+          if (S1 = 'char') or (S1 = 'varchar') then S1 := S1 + '(' + Cells[iPrec,i] + ')';
+          if S1 = 'numeric' then S1 := S1 + '(' + trim(Cells[iPrec,i]) + ',' + trim(Cells[iPrec+1,i]) + ')';
+          S := S0 + S1;
+          iMax := Max(iMax,length(S));
+          Strings.Add(S);
+        end;
+        if Strings.Count>0 then
+        begin
+          for i := 0 to Strings.Count - 2 do
+          begin
+            S := Strings[i];
+            Strings[i] := S.PadRight(iMax + 1) + ',';
+          end;
+          Clipboard.AsText := Strings.Text;
+          Result := True;
+        end;
+      finally
+        Strings.Free;
+      end
+    end;
+  end;
 end;
 
 destructor TStringGridEx.Destroy;

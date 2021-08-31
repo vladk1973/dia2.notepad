@@ -33,10 +33,14 @@ type
     procedure ShowProcedureList;
     procedure FuncLog;
     procedure FuncPrForm(const Server: string = ''; const Base: string = '');
+    procedure FuncExecThisSQL(S: string);
     procedure FuncExecSQL;
     procedure FuncExecSQLPlan;
     procedure FuncInsertText(const S: string);
     procedure FuncInsertParam;
+    procedure FuncReplaceProcParams;
+    procedure FuncSP_HELP;
+    procedure FuncSP_HELPINDEX;
   end;
 
 var
@@ -94,6 +98,23 @@ begin
   Npp.FuncInsertText(cnstBSL_T);
 end;
 
+procedure f_REPLACEPROCPARAMS; cdecl;
+begin
+  Npp.FuncReplaceProcParams;
+end;
+
+procedure f_SP_HELP; cdecl;
+begin
+  Npp.FuncSP_HELP;
+end;
+
+procedure f_SP_HELPINDEX; cdecl;
+begin
+  Npp.FuncSP_HELPINDEX;
+end;
+
+
+
 procedure _FuncLForm; cdecl;
 begin
   Npp.ShowProcedureList;
@@ -126,6 +147,10 @@ begin
   AddFuncItem('M_BUSINESSLOG_CHECKPOINT' ,f_M_BUSINESSLOG_CHECKPOINT);
   AddFuncItem('M_BUSINESSLOG_PARAM'      ,f_M_BUSINESSLOG_PARAM);
   AddFuncItem('M_LOG_TABLE_REQ'          ,f_M_LOG_TABLE_REQ);
+  AddFuncItem('-', nil );
+  AddFuncItem('Параметризация процедуры' ,f_REPLACEPROCPARAMS);
+  AddFuncItem('sp_help' ,f_SP_HELP);
+  AddFuncItem('sp_helpindex' ,f_SP_HELPINDEX);
 
   Sci_Send(SCI_SETMODEVENTMASK,SC_MOD_INSERTTEXT or SC_MOD_DELETETEXT,0);
 end;
@@ -266,27 +291,16 @@ procedure TdiaPlugin.FuncExecSQL;
 var S: string;
     N: integer;
 begin
-  if not Assigned(FLogForm) then
+  S := SelectedText;
+  N := Length(S);
+
+  if N < 1 then
   begin
-    FLogForm := TLogForm.Create(self, 0);
-    TLogForm(FLogForm).DoConnect;
-  end
-  else
-  begin
-    S := SelectedText;
+    S := GetText;
     N := Length(S);
-
-    if N < 1 then
-    begin
-      S := GetText;
-      N := Length(S);
-    end;
-
-    if (N > 1) and Assigned(FLogForm) then
-    begin
-      TLogForm(FLogForm).DoSql(S);
-    end;
   end;
+
+  FuncExecThisSQL(S);
 end;
 
 procedure TdiaPlugin.FuncExecSQLPlan;
@@ -310,8 +324,27 @@ begin
 
 end;
 
+procedure TdiaPlugin.FuncExecThisSQL(S: string);
+var N: integer;
+begin
+  if not Assigned(FLogForm) then
+  begin
+    FLogForm := TLogForm.Create(self, 0);
+    TLogForm(FLogForm).DoConnect;
+  end
+  else
+  begin
+    N := Length(S);
+
+    if (N > 1) and Assigned(FLogForm) then
+    begin
+      TLogForm(FLogForm).DoSql(S);
+    end;
+  end;
+end;
+
 procedure TdiaPlugin.FuncInsertParam;
-  function RemoveNoVarString(Strings: TStringList): TStringList;
+  function RemoveNoVarString(Strings: TStringList; CheckLeftSymbols: boolean = True): TStringList;
   var
     i,iPos: Integer;
     S,S0: string;
@@ -326,8 +359,11 @@ procedure TdiaPlugin.FuncInsertParam;
           S := RemoveComments(Copy(Strings[i],1,iPos-1));
           S := StringReplace(S,' ','',[rfReplaceAll]);
           S := StringReplace(S,',','',[rfReplaceAll]);
-          if S <>'' then
+          S := trimleft(S);
+          if (S <>'') and CheckLeftSymbols then
+          begin
             Strings.Delete(i)
+          end
           else
           begin
             S := Copy(Strings[i],iPos,MaxInt);
@@ -368,6 +404,7 @@ procedure TdiaPlugin.FuncInsertParam;
   end;
 
 const NoDuplicates = True;
+      CheckLeftSymbols = False;
 var
   S0,SText: AnsiString;
   Strings,Strings1: TStringList;
@@ -375,7 +412,7 @@ var
   i,j,iPos: Integer;
 begin
   S0 := SelectedText;
-  Strings := RemoveNoVarString(WholeWords(S0,NoDuplicates));
+  Strings := RemoveNoVarString(WholeWords(S0,NoDuplicates),CheckLeftSymbols);
   if Assigned(Strings) then
   begin
     try
@@ -435,6 +472,127 @@ procedure TdiaPlugin.FuncPrForm(const Server: string = ''; const Base: string = 
 begin
   if not Assigned(Fpr) then Fpr := Tpr.Create(self, 0);
   (Fpr as Tpr).DoPrForm(Server,Base);
+end;
+
+procedure TdiaPlugin.FuncReplaceProcParams;
+var
+  S0,S: AnsiString;
+  Line: string;
+  Strings,Strings1,Strings2: TStringList;
+  Range: TCharacterRange;
+  i,j,iPos,iPos1: Integer;
+begin
+  S0 := SelectedText;
+  Strings := TStringList.Create;
+  Strings1:= TStringList.Create;
+  Strings2:= TStringList.Create;
+  try
+    Strings.Text := S0;
+    for i := 0 to Strings.Count-1 do
+    begin
+      iPos := Pos('%',Strings[i]);
+      iPos1:= Pos('!',Strings[i]); //Это параметры в DFM форме
+      if (iPos > 0) and (iPos1 > iPos) then
+      begin
+        S0 := RemoveComments(Copy(Strings[i],1,iPos-1));
+        S0 := StringReplace(S0,' ','',[rfReplaceAll]);
+        S0 := StringReplace(S0,',','',[rfReplaceAll]);
+        S0 := StringReplace(S0,'=','',[rfReplaceAll]);
+        S0 := trim(S0);
+        if Pos('@',S0) = 1 then
+        begin
+          if Strings1.Count > 0 then
+            Strings1.Add('       ' + S0)
+          else
+            Strings1.Add('select ' + S0);
+
+          S := RemoveComments(Copy(Strings[i],iPos,MaxInt));
+          S := StringReplace(S,' ','',[rfReplaceAll]);
+          S := StringReplace(S,',','',[rfReplaceAll]);
+          S := trim(S);
+          Strings2.Add(S);
+
+          S := Copy(Strings[i],1,iPos-1) + S0 + Copy(Strings[i],iPos1+1,MaxInt);
+          Strings[i] := S;
+        end;
+      end;
+
+    end;
+
+    j := 0;
+    for i := 0 to Strings1.Count - 1 do
+      j := Max(j,length(Strings1[i]));
+
+    for i := 0 to Strings1.Count - 1 do
+    begin
+      Line := Strings1[i];
+      Strings1[i] := Line.PadRight(j+1) + '= ' + Strings2[i];
+    end;
+
+    j := 0;
+    for i := 0 to Strings1.Count - 1 do
+      j := Max(j,length(Strings1[i]));
+
+    for i := 0 to Strings1.Count - 2 do
+    begin
+      Line := Strings1[i];
+      Strings1[i] := Line.PadRight(j+1) + ',';
+    end;
+
+    if Strings1.Count > 0 then
+    begin
+      Strings1.Add('');
+      Strings1.AddStrings(Strings);
+      //FuncInsertText(Strings1.Text);
+      S := UTF8Encode(Strings1.Text);
+      Sci_Send(SCI_REPLACESEL, 0, LPARAM(PAnsiChar(S)));
+    end;
+
+  finally
+    Strings.Free;
+    Strings1.Free;
+    Strings2.Free;
+  end;
+end;
+
+procedure TdiaPlugin.FuncSP_HELP;
+var S: string;
+    N: integer;
+begin
+  S := SelectedText;
+  N := Length(S);
+
+  if N < 1 then
+  begin
+    S := trim(GetText);
+    N := Pos(' ',S);
+    if N > 0  then
+      S := Copy(S,1,N-1);
+    N := Length(S);
+  end;
+
+  if N > 1 then
+    FuncExecThisSQL('sp_help ' + S);
+end;
+
+procedure TdiaPlugin.FuncSP_HELPINDEX;
+var S: string;
+    N: integer;
+begin
+  S := SelectedText;
+  N := Length(S);
+
+  if N < 1 then
+  begin
+    S := trim(GetText);
+    N := Pos(' ',S);
+    if N > 0  then
+      S := Copy(S,1,N-1);
+    N := Length(S);
+  end;
+
+  if N > 1 then
+    FuncExecThisSQL('sp_helpindex ' + S);
 end;
 
 function TdiaPlugin.GetTextRange(const Range: TCharacterRange): nppString;
