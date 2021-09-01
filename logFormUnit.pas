@@ -769,7 +769,7 @@ begin
 end;
 
 procedure TlogForm.OnReplcaeSelectedText(Strings: TStrings);
-var S: string;
+var S: AnsiString;
 begin
   if Strings.Count > 0 then
   begin

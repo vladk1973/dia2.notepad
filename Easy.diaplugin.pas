@@ -149,7 +149,10 @@ begin
   AddFuncItem('M_LOG_TABLE_REQ'          ,f_M_LOG_TABLE_REQ);
   AddFuncItem('-', nil );
   AddFuncItem('Параметризация процедуры' ,f_REPLACEPROCPARAMS);
-  AddFuncItem('sp_help' ,f_SP_HELP);
+
+  sk.IsCtrl := true; sk.IsAlt := false; sk.IsShift := false;
+  sk.Key := 123; // F12
+  AddFuncItem('sp_help' ,f_SP_HELP,sk);
   AddFuncItem('sp_helpindex' ,f_SP_HELPINDEX);
 
   Sci_Send(SCI_SETMODEVENTMASK,SC_MOD_INSERTTEXT or SC_MOD_DELETETEXT,0);
@@ -480,7 +483,7 @@ var
   Line: string;
   Strings,Strings1,Strings2: TStringList;
   Range: TCharacterRange;
-  i,j,iPos,iPos1: Integer;
+  i,j,iPos,iPos1,cPos,cPos1: Integer;
 begin
   S0 := SelectedText;
   Strings := TStringList.Create;
@@ -492,12 +495,15 @@ begin
     begin
       iPos := Pos('%',Strings[i]);
       iPos1:= Pos('!',Strings[i]); //Это параметры в DFM форме
+      cPos := Pos('''%',Strings[i]);
+      cPos1:= Pos('!''',Strings[i]); //Это параметры в кавычках
       if (iPos > 0) and (iPos1 > iPos) then
       begin
         S0 := RemoveComments(Copy(Strings[i],1,iPos-1));
         S0 := StringReplace(S0,' ','',[rfReplaceAll]);
         S0 := StringReplace(S0,',','',[rfReplaceAll]);
         S0 := StringReplace(S0,'=','',[rfReplaceAll]);
+        S0 := StringReplace(S0,'''','',[rfReplaceAll]);
         S0 := trim(S0);
         if Pos('@',S0) = 1 then
         begin
@@ -506,13 +512,20 @@ begin
           else
             Strings1.Add('select ' + S0);
 
-          S := RemoveComments(Copy(Strings[i],iPos,MaxInt));
+          if cPos > 0  then
+            S := RemoveComments(Copy(Strings[i],cPos,MaxInt))
+          else
+            S := RemoveComments(Copy(Strings[i],iPos,MaxInt));
+
           S := StringReplace(S,' ','',[rfReplaceAll]);
           S := StringReplace(S,',','',[rfReplaceAll]);
           S := trim(S);
           Strings2.Add(S);
 
-          S := Copy(Strings[i],1,iPos-1) + S0 + Copy(Strings[i],iPos1+1,MaxInt);
+          if (cPos > 0) and (cPos1 > 0) then
+            S := Copy(Strings[i],1,cPos-1) + S0 + Copy(Strings[i],cPos1+2,MaxInt)
+          else
+            S := Copy(Strings[i],1,iPos-1) + S0 + Copy(Strings[i],iPos1+1,MaxInt);
           Strings[i] := S;
         end;
       end;

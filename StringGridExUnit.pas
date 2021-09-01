@@ -156,6 +156,10 @@ begin
             S := Strings[i];
             Strings[i] := S.PadRight(iMax + 1) + ',';
           end;
+          S := Strings.Text;;
+          for i := 0 to SelStrings.Count-1 do
+            if Pos(trim(SelStrings[i]) +' ',S) = 0 then Strings.Add('--' + SelStrings[i]);
+
 
           if Assigned(FOnReplaceSelectedText) and (SelStrings.Count > 0) then
             FOnReplaceSelectedText(Strings)
