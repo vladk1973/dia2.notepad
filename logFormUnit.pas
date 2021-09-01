@@ -120,6 +120,8 @@ type
     procedure GridButtonClick(Sender: TObject);
 
     procedure SetCurrentNode(const Value: TTreeNode);
+    procedure OnGetSelectedText(Strings: TStrings);
+    procedure OnReplcaeSelectedText(Strings: TStrings);
     function GetCurrentPanel: TExScrollBox;
   protected
     property CurrentNode: TTreeNode read FCurrentNode write SetCurrentNode;
@@ -133,7 +135,7 @@ type
 implementation
 
 uses
-  Easy.diaplugin,Vcl.Clipbrd,
+  scisupport, Easy.diaplugin,Vcl.Clipbrd,
   ThreadUnit,StringGridExUnit,
   SqlThreadUnit,CommandThreadUnit,
   BDLoginUnit, LogFormHelpersUnit,
@@ -620,6 +622,8 @@ begin
       if Grid.Hint <> '' then
         Grid.OnButtonClick := GridButtonClick;
       Grid.PopupMenu := GridMenu;
+      Grid.OnGetSelectedText := Self.OnGetSelectedText;
+      Grid.OnReplcaeSelectedText := Self.OnReplcaeSelectedText;
 
       k := 0;
       for j := 0 to Grid.ColCount - 1 do
@@ -752,6 +756,25 @@ begin
     msTreeView.HideMe;
     sybTreeView.HideMe;
     odbcTreeView.ShowMe;
+  end;
+end;
+
+procedure TlogForm.OnGetSelectedText(Strings: TStrings);
+var S: string;
+    N: integer;
+begin
+  S := TDiaPlugin(Npp).SelectedText;
+  N := Length(S);
+  if N > 0 then Strings.Text := S;
+end;
+
+procedure TlogForm.OnReplcaeSelectedText(Strings: TStrings);
+var S: string;
+begin
+  if Strings.Count > 0 then
+  begin
+    S := UTF8Encode(Strings.Text);
+    Npp.Sci_Send(SCI_REPLACESEL, 0, LPARAM(PAnsiChar(S)));
   end;
 end;
 
