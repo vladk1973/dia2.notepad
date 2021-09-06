@@ -977,7 +977,9 @@ begin
   if not Assigned(TTabControl(Sender).Tabs.Objects[i]) then
   begin
     if i = MaxTabIndex then
-     TTabControl(Sender).TabIndex := i-1
+    begin
+     TTabControl(Sender).TabIndex := i-1;
+    end
     else
     begin
       TTabControl(Sender).Tabs.Objects[i] := CreateBox;

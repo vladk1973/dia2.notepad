@@ -12,6 +12,8 @@ type
   TModalResultArray = array[False..True] of TModalResult;
   TGarbageArray   = array[0..9] of string;
   TBeginProcArray = array[0..3] of string;
+  TBeginAlignArray = array[0..3] of string;
+
   TShowMode = (shSql,shPr,shCI);
 
   TBdType = (bdMSSQL, bdSybase, bdODBC);
@@ -79,6 +81,12 @@ const
     '#define '}
     );
 
+  cnstAlignStartWords: TBeginAlignArray = (
+    'declare',
+    'execute',
+    'exec'   ,
+    '@'
+    );
 
   cnstShowPlanXML_ON = 'SET SHOWPLAN_XML ON';
   cnstShowPlanXML_OFF = 'SET SHOWPLAN_XML OFF';

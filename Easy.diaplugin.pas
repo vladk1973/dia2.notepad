@@ -6,7 +6,7 @@ uses
   Winapi.Windows,  Winapi.Messages, System.SysUtils,
   Vcl.Dialogs, Vcl.Forms, Vcl.Controls,
   System.Classes, Vcl.ComCtrls, SciSupport, System.Contnrs, System.Math,
-  NppPlugin, ConstUnit, logFormUnit, prUnit, lookupProcUnit;
+  NppPlugin, ConstUnit, logFormUnit, prUnit, lookupProcUnit, AlignStringsUnit;
 
 type
 
@@ -25,9 +25,7 @@ type
     procedure DoNppnToolbarModification; override;
     procedure DoNppnCharAdded(const ASCIIKey: Integer); override;
     procedure DoNppnModified(sn: PSCNotification); override;
-    {$IFDEF WIN64}
     procedure DoNppnUpdateAutoSelection(P: PAnsiChar); override;
-    {$ENDIF}
 
     procedure ShowAutocompletion(const TableName: string; Indx: TStringList);
     procedure ShowProcedureList;
@@ -41,6 +39,7 @@ type
     procedure FuncReplaceProcParams;
     procedure FuncSP_HELP;
     procedure FuncSP_HELPINDEX;
+    procedure FuncAlignCode;
   end;
 
 var
@@ -113,6 +112,11 @@ begin
   Npp.FuncSP_HELPINDEX;
 end;
 
+procedure f_FuncAlignCode; cdecl;
+begin
+  Npp.FuncAlignCode;
+end;
+
 
 
 procedure _FuncLForm; cdecl;
@@ -149,6 +153,8 @@ begin
   AddFuncItem('M_LOG_TABLE_REQ'          ,f_M_LOG_TABLE_REQ);
   AddFuncItem('-', nil );
   AddFuncItem('ѕараметризаци€ процедуры' ,f_REPLACEPROCPARAMS);
+  AddFuncItem('¬ыровн€ть блок SQL кода' ,f_FuncAlignCode);
+
 
   sk.IsCtrl := true; sk.IsAlt := false; sk.IsShift := false;
   sk.Key := 123; // F12
@@ -288,6 +294,49 @@ begin
   tb.ToolbarIcon := 0;
   tb.ToolbarBmp := LoadImage(Hinstance, 'PLANBUTTON', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
   Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(3)), LPARAM(@tb));
+end;
+
+procedure TdiaPlugin.FuncAlignCode;
+  function GetRightWord(S: string): string;
+  begin
+    Result := trim(S);
+    if Pos('=',Result) = 1 then
+      Result := '= ' + trim(Copy(Result,2,MaxInt));
+  end;
+var
+  S: AnsiString;
+  Strings: TAlignStrings;
+  i,j,iPos: Integer;
+begin
+  S := SelectedText;
+
+  Strings := TAlignStrings.Create;
+  try
+    Strings.Text := S;
+    for i := 0 to Strings.Count-1 do
+    begin
+      S := LowerCase(RemoveComments(Strings[i]));
+      iPos := 0;
+      for j := Low(cnstAlignStartWords) to High(cnstAlignStartWords) do
+      begin
+        iPos := Pos(cnstAlignStartWords[j],S);
+        if iPos > 0 then
+        begin
+          Strings.AlignFrom(i,cnstAlignStartWords[j]);
+          Break;
+        end;
+      end;
+      if iPos > 0 then Break;
+    end;
+
+    if (iPos > 0) then
+    begin
+      S := UTF8Encode(Strings.Text);
+      Sci_Send(SCI_REPLACESEL, 0, LPARAM(PAnsiChar(S)));
+    end;
+  finally
+    Strings.Free;
+  end;
 end;
 
 procedure TdiaPlugin.FuncExecSQL;
@@ -497,6 +546,11 @@ begin
       iPos1:= Pos('!',Strings[i]); //Ёто параметры в DFM форме
       cPos := Pos('''%',Strings[i]);
       cPos1:= Pos('!''',Strings[i]); //Ёто параметры в кавычках
+      if cPos = 0 then
+        cPos := Pos('"%',Strings[i]);
+      if cPos1 = 0 then
+        cPos1:= Pos('!"',Strings[i]); //Ёто параметры в кавычках
+
       if (iPos > 0) and (iPos1 > iPos) then
       begin
         S0 := RemoveComments(Copy(Strings[i],1,iPos-1));
@@ -504,6 +558,7 @@ begin
         S0 := StringReplace(S0,',','',[rfReplaceAll]);
         S0 := StringReplace(S0,'=','',[rfReplaceAll]);
         S0 := StringReplace(S0,'''','',[rfReplaceAll]);
+        S0 := StringReplace(S0,'"','',[rfReplaceAll]);
         S0 := trim(S0);
         if Pos('@',S0) = 1 then
         begin
@@ -575,12 +630,9 @@ begin
   S := SelectedText;
   N := Length(S);
 
-  if N < 1 then
+  if N = 0 then
   begin
-    S := trim(GetText);
-    N := Pos(' ',S);
-    if N > 0  then
-      S := Copy(S,1,N-1);
+    S := GetWord;
     N := Length(S);
   end;
 
@@ -595,12 +647,9 @@ begin
   S := SelectedText;
   N := Length(S);
 
-  if N < 1 then
+  if N = 0 then
   begin
-    S := trim(GetText);
-    N := Pos(' ',S);
-    if N > 0  then
-      S := Copy(S,1,N-1);
+    S := GetWord;
     N := Length(S);
   end;
 
@@ -628,13 +677,28 @@ begin
   end;
 end;
 
-{$IFDEF WIN64}
 procedure TdiaPlugin.DoNppnUpdateAutoSelection(P: PAnsiChar);
 var
   S: AnsiString;
+  pS: PAnsiChar;
   iLen: Integer;
 begin
   S := P;
+  if Length(S) = 0 then
+  begin
+    GetMem(pS,255);
+    try
+      iLen := Sci_Send(SCI_AUTOCGETCURRENTTEXT,0,LPARAM(pS));
+      if iLen > 0 then
+      begin
+        SetLength(S,iLen);
+        StrLCopy(PAnsiChar(S),pS,iLen);
+      end;
+    finally
+      FreeMem(pS);
+    end;
+  end;
+
   if (Length(S)>0) and  (S[1]= 'X') then
     if (Pos('(',S) > 0) and (Pos(')',S) = Length(S)) then
     begin
@@ -650,6 +714,5 @@ begin
       end;
     end;
 end;
-{$ENDIF}
 
 end.

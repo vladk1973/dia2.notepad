@@ -36,7 +36,8 @@ uses
   NppDockingForms in '..\npp.connections\lib\NppDockingForms.pas' {NppDockingForm},
   NppForms in '..\npp.connections\lib\NppForms.pas' {NppForm},
   nppplugin in '..\npp.connections\lib\nppplugin.pas',
-  SciSupport in '..\npp.connections\lib\SciSupport.pas';
+  SciSupport in '..\npp.connections\lib\SciSupport.pas',
+  AlignStringsUnit in 'AlignStringsUnit.pas';
 
 {$R *.res}
 {$R diaplugin.res}
