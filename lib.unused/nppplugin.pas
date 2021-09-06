@@ -22,7 +22,7 @@ unit nppplugin;
 interface
 
 uses
-  Winapi.Windows,Winapi.Messages,System.SysUtils,
+  Winapi.Windows,Winapi.Messages,System.SysUtils, {Dialogs,}
   Vcl.Forms,Classes, SciSupport;
 
 const
@@ -523,23 +523,19 @@ type
     PluginName: nppString;
     function AddFuncItem(Name: nppString; Func: PFUNCPLUGINCMD): Integer; overload;
     function AddFuncItem(Name: nppString; Func: PFUNCPLUGINCMD; ShortcutKey: TShortcutKey): Integer; overload;
-    {Перехват сообщений Scintilla}
+
     procedure ClientWndProc(var Message: TMessage);virtual;
     procedure DoNppnToolbarModification; virtual;
 
-
-    function SelectedText: nppString;
-    function GetText: nppString;
-    function CurrentLine: LRESULT;
-    function CurrentPos: LRESULT;
-    function GetTextLength: LRESULT;
-    function GetTextRange(const Range: TCharacterRange): nppString;
 
   public
     NppData: TNppData;
     constructor Create;
     destructor Destroy; override;
     procedure BeforeDestruction; override;
+
+    function SelectedText: nppString;
+    function GetText: nppString;
 
     function CmdIdFromDlgId(DlgId: Integer): Integer;
     function Sci_Send(Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT;
@@ -549,7 +545,7 @@ type
     procedure SetInfo(NppData: TNppData); virtual;
     function GetName: nppPChar;
     function GetFuncsArray(var FuncsCount: Integer): Pointer;
-    procedure BeNotified(sn: PSCNotification);
+    procedure BeNotified(sn: PSCNotification); virtual;
     procedure MessageProc(var Msg: TMessage); virtual;
 
     // hooks
@@ -561,8 +557,7 @@ type
     procedure DoNppnUpdateVScroll; virtual;
     procedure DoNppnUpdateHScroll; virtual;
     procedure DoNppnCharAdded(const ASCIIKey: Integer); virtual;
-    procedure DoNppnUpdateAutoSelection(var S: AnsiString);
-
+    procedure DoNppnUpdateAutoSelection(P: PAnsiChar);virtual;
     // df
     function DoOpen(filename: string): boolean; overload;
     function DoOpen(filename: string; Line: Integer): boolean; overload;
@@ -741,17 +736,20 @@ begin
     if (SC_UPDATE_SELECTION and sn^.updated)> 0 then self.DoNppnUpdateSelection;
 
     if (SC_UPDATE_V_SCROLL and sn^.updated) > 0 then self.DoNppnUpdateVScroll;
-
-    {if (SC_UPDATE_H_SCROLL and sn^.updated) > 0 then self.DoNppnUpdateHScroll;}
   end;
 
   if (HWND(sn^.nmhdr.hwndFrom) = ScintillaHandle)
     and (sn^.nmhdr.code = SCN_CHARADDED) then
-    if sn^.ch <> 0 then DoNppnCharAdded(sn^.ch);
+  begin
+    if sn^.ch <> 0 then DoNppnCharAdded(sn^.ch)
+    else
+    if sn^.modifiers <> 0 then DoNppnCharAdded(sn^.modifiers)
+  end;
 
   if (HWND(sn^.nmhdr.hwndFrom) = ScintillaHandle)
     and (sn^.nmhdr.code = SCN_AUTOCSELECTION) then
-      DoNppnUpdateAutoSelection(AnsiString(Pointer(sn^.text)));
+      DoNppnUpdateAutoSelection(sn^.text);
+
 end;
 
 procedure TNppPlugin.MessageProc(var Msg: TMessage);
@@ -782,7 +780,7 @@ begin
 end;
 
 function TNppPlugin.SelectedText: nppString;
-var Size: Longint;
+var Size: NativeInt;
     S: AnsiString;
 begin
   Result := '';
@@ -797,28 +795,8 @@ begin
   end;
 end;
 
-function TNppPlugin.GetTextRange(const Range: TCharacterRange): nppString;
-var pt: PTextRange; {Возвращает текст внутри переданного диапазона}
-    Size: LRESULT;
-    S: AnsiString;
-begin
-  Size := (Range.cpMax - Range.cpMin)+1;
-  GetMem(pt,SizeOf(TTextRange));
-  GetMem(pt^.lpstrText,Size);
-  try
-    pt^.chrg := Range;
-    Sci_Send(SCI_GETTEXTRANGE,0,LongInt(pt));
-    SetLength(S,Size-1);
-    StrLCopy(PAnsiChar(S),pt^.lpstrText,Size-1);
-  finally
-    FreeMem(pt^.lpstrText,Size);
-    FreeMem(pt,SizeOf(TTextRange));
-    Result := S;
-  end;
-end;
-
 function TNppPlugin.GetText: nppString;
-var Size: Longint;
+var Size: NativeInt;
     S: AnsiString;
 begin
   Result := '';
@@ -831,24 +809,6 @@ begin
   finally
     SetLength(S,0);
   end;
-end;
-
-function TNppPlugin.CurrentPos: LRESULT;
-begin
-  Result := Sci_Send(SCI_GETCURRENTPOS, 0, 0);
-end;
-
-function TNppPlugin.CurrentLine: LRESULT;
-var
-  i: LRESULT;
-begin
-  i := CurrentPos;
-  Result := Sci_Send(SCI_LINEFROMPOSITION, i, 0);
-end;
-
-function TNppPlugin.GetTextLength: LRESULT;
-begin
-  Result := Sci_Send(SCI_GETLENGTH, 0, 0);
 end;
 
 procedure TNppPlugin.SetInfo(NppData: TNppData);
@@ -880,7 +840,7 @@ var
   c: array[0..MAX_PATH] of nppChar;
 begin
 {$IFDEF NPPUNICODE}
-  StringToWideChar(filename, c,MAX_PATH);
+  StringToWideChar(filename,c,MAX_PATH);
 {$ELSE}
   StrCopy(c, PChar(filename));
 {$ENDIF}
@@ -901,12 +861,12 @@ end;
 // overrides
 procedure TNppPlugin.DoNppnShutdown;
 begin
-  // override these
+  //do nothing for this plugin
 end;
 
 procedure TNppPlugin.DoNppnToolbarModification;
 begin
-  // override these
+  //do nothing for this plugin
 end;
 
 function TNppPlugin.CmdIdFromDlgId(DlgId: Integer): Integer;
@@ -916,37 +876,37 @@ end;
 
 procedure TNppPlugin.DoNppnModified(sn: PSCNotification);
 begin
-  Exit;
+  //do nothing for this plugin
 end;
 
 procedure TNppPlugin.DoNppnFileOpened(sn: PSCNotification);
 begin
-  Exit;
+  //do nothing for this plugin
 end;
 
 procedure TNppPlugin.DoNppnUpdateContent;
 begin
-  Exit;
+  //do nothing for this plugin
 end;
 
 procedure TNppPlugin.DoNppnUpdateSelection;
 begin
-  Exit;
+  //do nothing for this plugin
 end;
 
 procedure TNppPlugin.DoNppnUpdateHScroll;
 begin
-  Exit;
+  //do nothing for this plugin
 end;
 
 procedure TNppPlugin.DoNppnUpdateVScroll;
 begin
-  Exit;
+  //do nothing for this plugin
 end;
 
 procedure TNppPlugin.DoNppnCharAdded(const ASCIIKey: Integer);
 begin
-  Exit;
+  //do nothing for this plugin
 end;
 
 procedure TNppPlugin.SaveCurrentFile;
@@ -1005,7 +965,6 @@ begin
     FMainViewClientInstance := LONG_PTR(Classes.MakeObjectInstance(ClientWndProcMainView));
     FMainViewDefClientProc := GetWindowLong(AHandle,GWL_WNDPROC);
     SetWindowLongPtr(AHandle, GWLP_WNDPROC, FMainViewClientInstance);
-    //SetWindowLong(AHandle, GWL_WNDPROC, NativeInt(FMainViewClientInstance));
   end;
 
   AHandle := self.NppData.ScintillaSecondHandle;
@@ -1014,7 +973,6 @@ begin
     FSubViewClientInstance := LONG_PTR(Classes.MakeObjectInstance(ClientWndProcSubView));
     FSubViewDefClientProc := GetWindowLong(AHandle,GWL_WNDPROC);
     SetWindowLongPtr(AHandle, GWLP_WNDPROC, FSubViewClientInstance);
-    //SetWindowLong(AHandle, GWL_WNDPROC, NativeInt(FSubViewClientInstance));
   end;
 end;
 
@@ -1026,37 +984,24 @@ begin
   AHandle := self.NppData.ScintillaMainHandle;
   if AHandle <> 0 then
   begin
-    //SetWindowLong(AHandle, GWL_WNDPROC, Longint(FMainViewDefClientProc));
     SetWindowLongPtr(AHandle, GWLP_WNDPROC, FMainViewDefClientProc);
   end;
 
   AHandle := self.NppData.ScintillaSecondHandle;
   if AHandle <> 0 then
   begin
-    //SetWindowLong(AHandle, GWL_WNDPROC, Longint(FSubViewDefClientProc));
     SetWindowLongPtr(AHandle, GWLP_WNDPROC, FSubViewDefClientProc);
   end;
 end;
 
 procedure TNppPlugin.ClientWndProc(var Message: TMessage);
 begin
-  Exit;
+  //do nothing for this plugin
 end;
 
-procedure TNppPlugin.DoNppnUpdateAutoSelection(var S: AnsiString);
-//var
-//  iPos: LRESULT;
+procedure TNppPlugin.DoNppnUpdateAutoSelection(P: PAnsiChar);
 begin
-  if (Length(S)>0) and  (S[1]= 'X') then
-    if (Pos('(',S) > 0) and (Pos(')',S) = Length(S)) then
-    begin
-      S := Copy(S,1,Pos('(',S)-1); //Здесь можно менять вставляемый текст
-      //Sci_Send(SCI_AUTOCCANCEL,0,0);
-      //iPos := Sci_Send(SCI_GETCURRENTPOS,0,0);
-      //Sci_Send(SCI_INSERTTEXT, WPARAM(-1), LPARAM(PChar(S0)));
-
-      //Sci_Send(SCI_GOTOPOS,iPos + Length(S),0);
-    end;
+  //do nothing for this plugin
 end;
 
 end.
