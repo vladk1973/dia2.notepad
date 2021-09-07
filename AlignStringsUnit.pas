@@ -11,7 +11,7 @@ type
   TAlignStrings = class(TStringList)
   private
     procedure AlignDeclarations(const StartRow: Integer);
-    procedure AlignVars(const StartRow: Integer);
+    procedure AlignVars(const StartRow: Integer; AlignColumn: Integer = 0);
     procedure AlignFunction(const StartRow: Integer; KeyWord: string);
   public
     procedure AlignFrom(const StartRow: Integer; KeyWord: string);
@@ -101,18 +101,39 @@ begin
 end;
 
 procedure TAlignStrings.AlignFunction(const StartRow: Integer; KeyWord: string);
+var
+  Words: TStringList;
+  AlignColumn, Cnt: Integer;
 begin
   if StartRow+1 < Count then
-    AlignVars(StartRow+1);
+  begin
+    Words := WholeWords(Strings[StartRow]);
+    if Assigned(Words) then
+    try
+      Cnt := Words.Count;
+      case Cnt of
+        2 : AlignColumn := Pos(Words[1],Strings[StartRow])+2;
+        3..255 : AlignColumn := Pos(Words[2],Strings[StartRow])+2;
+      else
+        AlignColumn := 0;
+      end;
+    finally
+      Words.Free;
+    end;
+    AlignVars(StartRow+1, AlignColumn);
+  end;
 end;
 
-procedure TAlignStrings.AlignVars(const StartRow: Integer);
+procedure TAlignStrings.AlignVars(const StartRow: Integer; AlignColumn: Integer = 0);
 var
   iStartPos, iMax, iLen, i: Integer;
   Line, S: string;
 begin
   iMax := 0;
-  iStartPos := Pos(cnstAlignStartWords[3],Strings[StartRow]);
+  if AlignColumn = 0 then
+    iStartPos := Pos(cnstAlignStartWords[3],Strings[StartRow])
+  else
+    iStartPos := AlignColumn;
 
   for i := StartRow to Count-1 do
   begin
