@@ -10,9 +10,14 @@ library dia2.notepad;
   with your DLL. To avoid using BORLNDMM.DLL, pass string information
   using PChar or ShortString parameters. }
 
+{$R *.dres}
+
 uses
   Windows,
   Messages,
+  Vcl.Forms,
+  Vcl.Themes,
+  Vcl.Styles,
   System.SysUtils,
   System.Classes,
   ConstUnit in 'ConstUnit.pas',
@@ -30,17 +35,17 @@ uses
   BDLoginUnit in 'BDLoginUnit.pas' {BDLoginForm},
   LogFormHelpersUnit in 'LogFormHelpersUnit.pas',
   TreeViewExUnit in 'TreeViewExUnit.pas',
-  prUnit in 'prUnit.pas' {pr},
   LogWriterUnit in 'LogWriterUnit.pas',
   lookupProcUnit in 'lookupProcUnit.pas' {lForm},
-  NppDockingForms in '..\npp.connections\lib\NppDockingForms.pas' {NppDockingForm},
-  NppForms in '..\npp.connections\lib\NppForms.pas' {NppForm},
-  nppplugin in '..\npp.connections\lib\nppplugin.pas',
-  SciSupport in '..\npp.connections\lib\SciSupport.pas',
-  AlignStringsUnit in 'AlignStringsUnit.pas';
+  NppDockingForms in 'lib\NppDockingForms.pas' {NppDockingForm},
+  NppForms in 'lib\NppForms.pas' {NppForm},
+  nppplugin in 'lib\nppplugin.pas',
+  SciSupport in 'lib\SciSupport.pas',
+  AlignStringsUnit in 'AlignStringsUnit.pas',
+  regUnit in 'regUnit.pas',
+  CustomDialogUnit in 'CustomDialogUnit.pas' {CustomDialogForm};
 
 {$R *.res}
-{$R diaplugin.res}
 
 {$Include 'NppPluginInclude.pas'}
 

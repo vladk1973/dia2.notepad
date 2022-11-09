@@ -4,7 +4,7 @@ interface
 
 uses
   System.SysUtils, Winapi.Windows, Vcl.Controls, Winapi.Messages, Vcl.Dialogs, Vcl.Forms,
-  System.Classes, ComCtrls, System.Contnrs, System.Math,
+  System.Classes, ComCtrls, System.Contnrs, System.Math, Data.DB,Data.Win.ADODB,
   ConstUnit, SqlThreadUnit;
 
 type
@@ -24,8 +24,18 @@ type
   TSqlQueryRTIObject = class(TSqlQueryObject)
   private
     procedure WriteRecord(LogName: TFileName);
+    procedure QueryPrepare; virtual;
+    procedure QueryPrepareParameter(const MinNumber: double); virtual;
   protected
     procedure Execute; override;
+  public
+    //constructor Create;
+  end;
+
+  TPostgreSQLQueryRTIObject = class(TSqlQueryRTIObject)
+  private
+    procedure QueryPrepare; override;
+    procedure QueryPrepareParameter(const MinNumber: double); override;
   public
     //constructor Create;
   end;
@@ -191,6 +201,21 @@ begin
   if (not FThread.Terminated) then WriteRecord(Self.Name);
 end;
 
+procedure TSqlQueryRTIObject.QueryPrepare;
+begin
+  if not Query.Active then
+  begin
+    Query.SQL.Text := constSQL_RTI_Get;
+    ConvertSqlText(BdType=bdSybase,TStringList(Query.SQL));
+    Query.ParamCheck := True;
+  end;
+end;
+
+procedure TSqlQueryRTIObject.QueryPrepareParameter(const MinNumber: double);
+begin
+  Query.Parameters.ParamByName('MinNumber').Value := MinNumber;
+end;
+
 procedure TSqlQueryRTIObject.WriteRecord(LogName: TFileName);
 var LogWriter : TLogWriter;
     MinNumber: double;
@@ -201,17 +226,10 @@ begin
   MinNumber := -1;
 
   try
-    if not Query.Active then
-    begin
-      Query.SQL.Text := constSQL_RTI_Get;
-      ConvertSqlText(BdType=bdSybase,TStringList(Query.SQL));
-      Query.ParamCheck := True;
-    end;
-
+    QueryPrepare;
     repeat
       (*Начало цикла*)
-
-      Query.Parameters.ParamByName('MinNumber').Value := MinNumber;
+      QueryPrepareParameter(MinNumber);
       Query.Open;
       RecCount := Query.RecordCount;
       Query.First;
@@ -238,6 +256,19 @@ begin
     Query.Close;
     LogWriter.Free;
   end;
+end;
+
+{ TPostgreSQLQueryRTIObject }
+
+procedure TPostgreSQLQueryRTIObject.QueryPrepare;
+begin
+  Query.ParamCheck := False;
+end;
+
+procedure TPostgreSQLQueryRTIObject.QueryPrepareParameter(
+  const MinNumber: double);
+begin
+  Query.SQL.Text := Format(constSQL_RTI_Get_PostgreSQL,[MinNumber]);
 end;
 
 end.

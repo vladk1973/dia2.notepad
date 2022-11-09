@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{FFA4BAA6-E256-4A3C-A802-B29A2CBF538E}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="dia2.notepad.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="..\..\Embarcadero\Studio\Projects\Project1.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="dia2_notepad">
+        <MSBuild Projects="dia2.notepad.dproj"/>
+    </Target>
+    <Target Name="dia2_notepad:Clean">
+        <MSBuild Projects="dia2.notepad.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="dia2_notepad:Make">
+        <MSBuild Projects="dia2.notepad.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Project1">
+        <MSBuild Projects="..\..\Embarcadero\Studio\Projects\Project1.dproj"/>
+    </Target>
+    <Target Name="Project1:Clean">
+        <MSBuild Projects="..\..\Embarcadero\Studio\Projects\Project1.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Project1:Make">
+        <MSBuild Projects="..\..\Embarcadero\Studio\Projects\Project1.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="dia2_notepad;Project1"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="dia2_notepad:Clean;Project1:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="dia2_notepad:Make;Project1:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

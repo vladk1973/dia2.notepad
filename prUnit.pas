@@ -14,13 +14,6 @@ type
     pr: TPanel;
     LogBox: TListBox;
     ActionManager1: TActionManager;
-    Images: TImageList;
-    BeforePrAction: TAction;
-    AfterPrAction: TAction;
-    PRAction: TAction;
-    ReloadPrAction: TAction;
-    InstallerLogAction: TAction;
-    SubFileAction: TAction;
     CopyLogAction: TAction;
     LogPopupMenu: TPopupMenu;
     N1: TMenuItem;
@@ -29,22 +22,17 @@ type
     N3: TMenuItem;
     N4: TMenuItem;
     N5: TMenuItem;
-    procedure BeforePrActionExecute(Sender: TObject);
-    procedure AfterPrActionExecute(Sender: TObject);
-    procedure PRActionExecute(Sender: TObject);
-    procedure ReloadPrActionExecute(Sender: TObject);
+    N6: TMenuItem;
+    PostgreSQL1: TMenuItem;
     procedure LogBoxDrawItem(Control: TWinControl; Index: Integer; Rect: TRect;
       State: TOwnerDrawState);
     procedure LogBoxDblClick(Sender: TObject);
-    procedure InstallerLogActionExecute(Sender: TObject);
-    procedure SubFileActionExecute(Sender: TObject);
     procedure SubFileActionUpdate(Sender: TObject);
-    procedure CopyLogActionExecute(Sender: TObject);
     procedure FormCreate(Sender: TObject);
   private
     { Private declarations }
-    FSubFile: TPath;
-    FLogFile: TPath;
+    FSubFile: TPathName;
+    FLogFile: TPathName;
     function IsErrorString(const S: string): boolean;
     procedure WMThreadMessage(var Msg: TMessage); message WM_USER_MESSAGE_FROM_THREAD;
   public
@@ -58,43 +46,6 @@ uses
   nppplugin, PrFormUnit, ThreadUnit, CommandThreadUnit, LogFormHelpersUnit;
 
 {$R *.dfm}
-
-procedure Tpr.AfterPrActionExecute(Sender: TObject);
-var
-  Obj: TPrThreadObject;
-begin
-  Obj := TPrThreadObject(TAction(Sender).Tag);
-  if Obj.ErrMessage = '' then
-  begin
-    FLogFile := Obj.LogFile;
-    if FLogFile <> '' then
-    begin
-      ResultLabel.Caption := Obj.Description;
-      SubFileAction.Update;
-      ReloadPRAction.Execute;
-    end;
-  end
-  else
-  begin
-    FLogFile := '';
-    FSubFile := '';
-    SubFileAction.Update;
-    LogBox.Items.Clear;
-    LogBox.Items.Add(Obj.ErrMessage);
-  end;
-  Show;
-end;
-
-procedure Tpr.BeforePrActionExecute(Sender: TObject);
-begin
-  LogBox.Items.Clear;
-  LogBox.Items.Add(cnstSqlWaitResults);
-end;
-
-procedure Tpr.CopyLogActionExecute(Sender: TObject);
-begin
-  Clipboard.AsText := LogBox.Items.Text;
-end;
 
 procedure Tpr.DoPrForm(const Server: string = ''; const Base: string = '');
 var
@@ -131,11 +82,6 @@ begin
 
   FSubFile := '';
   FLogFile := '';
-end;
-
-procedure Tpr.InstallerLogActionExecute(Sender: TObject);
-begin
-  ShellExecute(Npp.NppData.NppHandle, 'explore', nppPChar(Npp.InstallerLogPath(FSubFile)), nil, nil, SW_SHOWNORMAL);
 end;
 
 function Tpr.IsErrorString(const S: string): boolean;
@@ -241,45 +187,6 @@ begin
     Offset := 22;
   	TextOut(Rect.Left + Offset, Rect.Top, S)
 	end;
-end;
-
-procedure Tpr.PRActionExecute(Sender: TObject);
-begin
-  DoPrForm;
-end;
-
-procedure Tpr.ReloadPrActionExecute(Sender: TObject);
-  procedure SetLogBoxHorzScrollBarVisible;
-  var
-    i, MaxWidth: integer;
-  begin
-    MaxWidth := 0;
-    for i := 0 to LogBox.Items.Count - 1 do
-      MaxWidth := Max(MaxWidth,LogBox.Canvas.TextWidth(LogBox.Items.Strings[i]+'wwwww'));
-    SendMessage(LogBox.Handle, LB_SETHORIZONTALEXTENT, MaxWidth, 0);
-  end;
-
-var
-  Strings: TStringList;
-begin
-  if (FLogFile <> '') and FileExists(FLogFile) then
-  begin
-    Strings := TStringList.Create;
-    try
-      Strings.LoadFromFile(FLogFile);
-      StringsToAnsi(Strings);
-      LogBox.Items.Clear;
-      LogBox.Items.Assign(Strings);
-    finally
-      Strings.Free;
-    end;
-    SetLogBoxHorzScrollBarVisible;
-  end;
-end;
-
-procedure Tpr.SubFileActionExecute(Sender: TObject);
-begin
-  if (FSubFile <> '') and FileExists(FSubFile) then Npp.DoOpen(FSubFile);
 end;
 
 procedure Tpr.SubFileActionUpdate(Sender: TObject);

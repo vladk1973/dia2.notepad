@@ -58,6 +58,15 @@ type
     property ScrollBox: TExScrollBox read FScrollBox write FScrollBox;
   end;
 
+  TSqlSilenceObject = class(TSqlThreadObject)
+  private
+    FAnswer: string;
+  protected
+    procedure Execute; override;
+  public
+    property Answer: string read FAnswer write FAnswer;
+  end;
+
   TSqlIndexObject = class(TSqlThreadObject)
   private
     FIndexes: TStringList;
@@ -110,6 +119,22 @@ begin
 end;
 
 function ConvertSqlText(const SybStyle: boolean; SqlText: TStringList): TStringList;
+  function StringReplaceIndexCol(mvalue,mparams,S: string): string;
+  var
+    iPos: integer;
+    mparams1,mparams2: string;
+  begin
+    iPos := Pos(',',mparams);
+    if iPos>0 then
+    begin
+      mparams1 := Copy(mparams,1,iPos-1);
+      mparams2 := Copy(mparams,iPos+1,MaxInt);
+      Result := StringReplace(mvalue,mparams1,Copy(S,1,Pos(',',S)-1),[rfReplaceAll]);
+      Result := StringReplace(Result,mparams2,Copy(S,Pos(',',S)+1,MaxInt),[rfReplaceAll]);
+    end
+    else
+      Result := StringReplace(mvalue,mparams,S,[rfReplaceAll]);
+  end;
 var
   S,Si,macros,macrosf,mvalue, ind: string;
   M: TStringList;
@@ -172,7 +197,7 @@ begin
               end;
 
               S := Copy(SqlText[j],1,start-1)
-                   + StringReplace(mvalue,ind,Si,[rfReplaceAll])
+                   + StringReplaceIndexCol(mvalue,ind,Si)
                    + Copy(SqlText[j],finish+1,MaxInt);
 
               SqlText[j] := S;
@@ -188,6 +213,25 @@ begin
     Result := SqlText;
   finally
     M.Free;
+  end;
+end;
+
+procedure MoveStrings(StringSource,StringsTarget: TStringList);
+var S0: string;
+    i : integer;
+begin
+  StringsTarget.Clear;
+  while StringSource.Count > 0 do
+  begin
+    for i := 0 to StringSource.Count-1 do
+    begin
+      S0 := Trim(StringSource[i]);
+      StringSource[i] := '';
+      if LowerCase(S0) = cnstGo then Break;
+      StringsTarget.Add(S0);
+    end;
+    while (StringSource.Count > 0) and (StringSource[0] = '') do StringSource.Delete(0);
+    if StringsTarget.Count > 0 then Exit;
   end;
 end;
 
@@ -287,24 +331,6 @@ begin
 end;
 
 procedure TSqlExecutorObject.Execute;
-  procedure MoveStrings(StringSource,StringsTarget: TStringList);
-  var S0: string;
-      i : integer;
-  begin
-    StringsTarget.Clear;
-    while StringSource.Count > 0 do
-    begin
-      for i := 0 to StringSource.Count-1 do
-      begin
-        S0 := Trim(StringSource[i]);
-        StringSource[i] := '';
-        if LowerCase(S0) = cnstGo then Break;
-        StringsTarget.Add(S0);
-      end;
-      while (StringSource.Count > 0) and (StringSource[0] = '') do StringSource.Delete(0);
-      if StringsTarget.Count > 0 then Exit;
-    end;
-  end;
 
   procedure PostGridMessage(const S: string);
   var
@@ -351,7 +377,7 @@ begin
 
     if PlanOnly then
     begin
-      if FBdType=bdODBC then
+      if FBdType in [bdODBC] then
       begin
         PostGridMessage(cnstSqlNoPossible);
         Exit;
@@ -359,21 +385,27 @@ begin
 
       Sql[0] := Copy(Sql[0],Length(cnstShowPlan)+1,MaxInt);
 
-      cmd := CreateComObject(CLASS_Command) as _Command;
-      try
-        cmd.CommandType := adCmdUnknown;
-        cmd.Set_ActiveConnection(Conn);
+      if FBdType in [bdMSSQL,bdSybase] then
+      begin
+        cmd := CreateComObject(CLASS_Command) as _Command;
+        try
+          cmd.CommandType := adCmdUnknown;
+          cmd.Set_ActiveConnection(Conn);
 
-        if FBdType=bdSybase then
-          cmd.CommandText := cnstShowPlan_ON
-        else
-          cmd.CommandText := cnstShowPlanXML_ON;
+          if FBdType=bdSybase then
+            cmd.CommandText := cnstShowPlan_ON
+          else
+            cmd.CommandText := cnstShowPlanXML_ON;
 
-        cmd.Execute(RA,EmptyParam,Integer(adCmdUnknown));
-      finally
-        cmd.Set_ActiveConnection(nil);
-        cmd  := nil;
-      end;
+          cmd.Execute(RA,EmptyParam,Integer(adCmdUnknown));
+        finally
+          cmd.Set_ActiveConnection(nil);
+          cmd  := nil;
+        end;
+      end
+      else
+      if FBdType in [bdPostgreSQL] then
+        Sql[0] := cnstShowPlan_PostgreSQL + Sql[0];
     end;
 
     Strings := TStringList.Create;
@@ -428,7 +460,7 @@ begin
                         S := VarToStr(V);
                       end;
 
-                    if PlanOnly and (FBdType<>bdSybase) then
+                    if PlanOnly and (FBdType=bdMSSQL) then
                     begin
                       Grid.Hint := S;
                       S := Copy(Strings.Text,1,150) + GetDots(Strings.Text);
@@ -507,7 +539,7 @@ begin
       Strings.Free;
     end;
 
-    if PlanOnly then
+    if PlanOnly and (FBdType in [bdMSSQL,bdSybase]) then
     begin
       cmd := CreateComObject(CLASS_Command) as _Command;
       try
@@ -603,6 +635,107 @@ begin
     finally
       cmd.Set_ActiveConnection(nil);
       cmd  := nil;
+    end;
+  finally
+    Conn.Close;
+    Conn := nil;
+  end;
+end;
+
+{ TSqlSilenceObject }
+
+procedure TSqlSilenceObject.Execute;
+var
+  cmd  : _Command;
+  Conn : _Connection;
+  rs   : _RecordSet;
+  RA   : OleVariant;
+  n,i,j: Integer;
+  Grid : TStringGridEx;
+  S    : string;
+  V    : OleVariant;
+  Strings: TStringList;
+begin
+  Conn := CreateComObject(CLASS_Connection) as _Connection;
+  Conn.ConnectionString := FConnectionString;
+  Conn.Open(Conn.ConnectionString,'','',Integer(adConnectUnspecified));
+  try
+    if FBdType in [bdMSSQL,bdSybase] then ConvertSqlText(FBdType=bdSybase,Sql);
+
+    Strings := TStringList.Create;
+    try
+      MoveStrings(Sql,Strings);
+
+      while Strings.Count > 0 do
+      begin
+        cmd := CreateComObject(CLASS_Command) as _Command;
+        cmd.CommandType := adCmdUnknown;
+        cmd.Set_ActiveConnection(Conn);
+        cmd.CommandText := Strings.Text;
+        cmd.CommandTimeout := FCommandTimeout;
+        try
+          try
+            rs := cmd.Execute(RA,EmptyParam,Integer(adCmdUnknown));
+          except
+            on E: Exception do
+            begin
+              Self.ErrMessage := E.Message;
+              Exit;
+            end;
+          end;
+
+          FAnswer := '';
+          while not FThread.Terminated do
+          begin
+            if rs.State = adStateOpen then
+            begin
+              if not (rs.EOF and rs.BOF) then
+              begin
+                if FThread.Terminated then Exit;
+                if rs.Fields.Count > 0 then
+                begin
+                  if FAnswer = '' then
+                    FAnswer := rs.Fields[0].Value
+                  else
+                    FAnswer := FAnswer + sLineBreak + rs.Fields[0].Value;
+                end
+              end;
+            end;
+
+            if Conn.Errors.Count > 0 then
+            begin
+              for n:=Conn.Errors.Count-1 downto 0 do
+                if Trim(Conn.Errors.Item[n].Description) <> '' then
+                begin
+                  if FThread.Terminated then Exit;
+
+                  S := Trim(Conn.Errors.Item[n].Description);
+
+                  if S <> '' then
+                  begin
+                    if Self.ErrMessage = '' then
+                      Self.ErrMessage := S
+                    else
+                      Self.ErrMessage := Self.ErrMessage + sLineBreak + S;
+                  end;
+                end;
+            end;
+
+            rs := rs.NextRecordset(RA);
+            if (rs=nil) then break;
+          end;
+        finally
+          cmd.Set_ActiveConnection(nil);
+          cmd  := nil;
+          rs   := nil;
+        end;
+
+        MoveStrings(Sql,Strings);
+      end;
+
+      if FThread.Terminated then Exit;
+    finally
+      Strings.Free;
     end;
   finally
     Conn.Close;

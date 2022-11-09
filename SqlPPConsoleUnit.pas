@@ -9,18 +9,18 @@ uses
 type
   TSqlPPConsole = class
   private
-    FConsoleFile: TPath;
+    FConsoleFile: TPathName;
     function TempPath: string;
   public
-    function Run(Command: TCommand; Path: TPath): boolean;
-    property ConsoleFile: TPath read FConsoleFile;
+    function Run(Command: TCommand; Path: TPathName): boolean;
+    property ConsoleFile: TPathName read FConsoleFile;
   end;
 
 implementation
 
 { TSqlPPConsole }
 
-function TSqlPPConsole.Run(Command: TCommand; Path: TPath): boolean;
+function TSqlPPConsole.Run(Command: TCommand; Path: TPathName): boolean;
 var
   i: integer;
   ATempPath, CurDir: string;

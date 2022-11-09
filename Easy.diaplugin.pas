@@ -6,7 +6,7 @@ uses
   Winapi.Windows,  Winapi.Messages, System.SysUtils,
   Vcl.Dialogs, Vcl.Forms, Vcl.Controls,
   System.Classes, Vcl.ComCtrls, SciSupport, System.Contnrs, System.Math,
-  NppPlugin, ConstUnit, logFormUnit, prUnit, lookupProcUnit, AlignStringsUnit;
+  NppPlugin, ConstUnit, logFormUnit, AlignStringsUnit;
 
 type
 
@@ -14,11 +14,9 @@ type
   private
     { Private declarations }
     FLogForm: TLogForm;
-    Fpr: Tpr;
-    FlForm: TlForm;
     procedure DoNppnTracingCharAdded(const Key: Integer);
     function CurrentPos: LRESULT;
-    function GetTextRange(const Range: TCharacterRange): nppString;
+   // function GetTextRange(const Range: TCharacterRange): nppString;
   public
     constructor Create;
 
@@ -26,12 +24,14 @@ type
     procedure DoNppnCharAdded(const ASCIIKey: Integer); override;
     procedure DoNppnModified(sn: PSCNotification); override;
     procedure DoNppnUpdateAutoSelection(P: PAnsiChar); override;
+    procedure DoChangePluginTheme; override;
+    procedure DoNppnShutdown; override;
 
     procedure ShowAutocompletion(const TableName: string; Indx: TStringList);
-    procedure ShowProcedureList;
     procedure FuncLog;
-    procedure FuncPrForm(const Server: string = ''; const Base: string = '');
+    procedure FuncPrForm;
     procedure FuncExecThisSQL(S: string);
+    procedure FuncExecHelpSQL(help: THelpType; S: string);
     procedure FuncExecSQL;
     procedure FuncExecSQLPlan;
     procedure FuncInsertText(const S: string);
@@ -39,6 +39,7 @@ type
     procedure FuncReplaceProcParams;
     procedure FuncSP_HELP;
     procedure FuncSP_HELPINDEX;
+    procedure FuncSP_HELPTEXT;
     procedure FuncAlignCode;
   end;
 
@@ -112,16 +113,14 @@ begin
   Npp.FuncSP_HELPINDEX;
 end;
 
+procedure f_SP_HELPTEXT; cdecl;
+begin
+  Npp.FuncSP_HELPTEXT;
+end;
+
 procedure f_FuncAlignCode; cdecl;
 begin
   Npp.FuncAlignCode;
-end;
-
-
-
-procedure _FuncLForm; cdecl;
-begin
-  Npp.ShowProcedureList;
 end;
 
 { TdiaPlugin }
@@ -133,7 +132,7 @@ begin
   inherited;
 
   PluginName := 'Easy.dia';
-  AddFuncItem('Показать результаты', _FuncLog);
+  AddFuncItem(PluginName, _FuncLog);
 
   sk.IsCtrl := true; sk.IsAlt := false; sk.IsShift := false;
   sk.Key := 120; // F9
@@ -152,14 +151,15 @@ begin
   AddFuncItem('M_BUSINESSLOG_PARAM'      ,f_M_BUSINESSLOG_PARAM);
   AddFuncItem('M_LOG_TABLE_REQ'          ,f_M_LOG_TABLE_REQ);
   AddFuncItem('-', nil );
-  AddFuncItem('Параметризация процедуры' ,f_REPLACEPROCPARAMS);
-  AddFuncItem('Выровнять блок SQL кода' ,f_FuncAlignCode);
+//  AddFuncItem('Параметризация процедуры' ,f_REPLACEPROCPARAMS);
+//  AddFuncItem('Выровнять блок SQL кода' ,f_FuncAlignCode);
 
 
   sk.IsCtrl := true; sk.IsAlt := false; sk.IsShift := false;
   sk.Key := 123; // F12
   AddFuncItem('sp_help' ,f_SP_HELP,sk);
   AddFuncItem('sp_helpindex' ,f_SP_HELPINDEX);
+  AddFuncItem('sp_helptext' ,f_SP_HELPTEXT);
 
   Sci_Send(SCI_SETMODEVENTMASK,SC_MOD_INSERTTEXT or SC_MOD_DELETETEXT,0);
 end;
@@ -167,6 +167,12 @@ end;
 function TdiaPlugin.CurrentPos: LRESULT;
 begin
   Result := Sci_Send(SCI_GETCURRENTPOS, 0, 0);
+end;
+
+procedure TdiaPlugin.DoChangePluginTheme;
+begin
+  inherited;
+  if Assigned(FLogForm) then FLogForm.OnAfterChangeDarkMode(Self);
 end;
 
 procedure TdiaPlugin.DoNppnCharAdded(const ASCIIKey: Integer);
@@ -189,6 +195,16 @@ begin
 
 end;
 
+procedure TdiaPlugin.DoNppnShutdown;
+begin
+  if Assigned(FLogForm) then
+  begin
+    FLogForm.Free;
+    FLogForm := nil;
+  end;
+  inherited;
+end;
+
 procedure TdiaPlugin.DoNppnTracingCharAdded(const Key: Integer);
 var
   Size,StartPos,Position: NativeInt;
@@ -198,20 +214,23 @@ begin
   if Assigned(FLogForm) then
   begin
     Size := Sci_Send(SCI_GETCURLINE, 0, 0);
+//    S := AnsiString(StringOfChar(#0, Size+1));
+
     SetLength(S,Size);
     try
-      Position := Sci_Send(SCI_GETCURLINE, 0, LPARAM(PAnsiChar(S)));
-      SetLength(S,Size-1);
+      Position := Sci_Send(SCI_GETCURLINE, Size, LPARAM(PAnsiChar(S)));
+      if not HasV5Apis then
+        SetLength(S,Size-1);
       StartPos := Position - Length(cnstI);
       if (StartPos > 0) and (Copy(S,StartPos,Length(cnstI))=cnstI) then
       begin
         S1 := Copy(S,1,StartPos-1);
-        i := Pos(cnstT1,S1);
+        i := Pos(cnstT1,LowerCase(S1));
         if i>0 then
           S1 := Copy(S1,i+Length(cnstT1),MaxInt)
         else
         begin
-          i := Pos(cnstT2,S1);
+          i := Pos(cnstT2,LowerCase(S1));
           if i>0 then
             S1 := Copy(S,i+Length(cnstT2),MaxInt)
         end;
@@ -254,10 +273,11 @@ begin
   Size := Sci_Send(SCI_GETCURLINE, 0, 0);
 
   SetLength(S,Size);
-  Sci_Send(SCI_GETCURLINE, 0, LPARAM(PAnsiChar(S)));
+  Sci_Send(SCI_GETCURLINE, Size, LPARAM(PAnsiChar(S)));
 
   try
-    SetLength(S,Size-1);
+    if not HasV5Apis then
+      SetLength(S,Size-1);
     if Pos(TableName+' ',S) > 0 then
     begin
       Indx.Delimiter := ' ';
@@ -269,31 +289,55 @@ begin
   end;
 end;
 
-procedure TdiaPlugin.ShowProcedureList;
-begin
-  if not Assigned(FlForm) then FlForm := TlForm.Create(self, 0);
-  (FlForm as TlForm).Show;
-end;
-
 procedure TdiaPlugin.DoNppnToolbarModification;
 var
   tb: TToolbarIcons;
+  tb8: TTbIconsDarkMode;
+  NppVersion: Cardinal;
 begin
-  tb.ToolbarIcon := 0;
-  tb.ToolbarBmp := LoadImage(Hinstance, 'TREE', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
-  Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(0)), LPARAM(@tb));
+  NppVersion := GetNppVersion;
+  if (HIWORD(NppVersion) >= 8) then
+  begin
+    tb8.ToolbarIcon := LoadImage(Hinstance, 'ITREEF', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
+    tb8.ToolbarIconDarkMode := LoadImage(Hinstance, 'ITREEFDARK', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
+    tb8.ToolbarBmp := LoadImage(Hinstance, 'TREE', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
+    Npp_Send(NPPM_ADDTOOLBARICON_FORDARKMODE, WPARAM(self.CmdIdFromDlgId(0)), LPARAM(@tb8));
 
-  tb.ToolbarIcon := 0;
-  tb.ToolbarBmp := LoadImage(Hinstance, 'PROLIVKA', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
-  Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(1)), LPARAM(@tb));
+    tb8.ToolbarIcon := LoadImage(Hinstance, 'ISERVER', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
+    tb8.ToolbarIconDarkMode := LoadImage(Hinstance, 'ISERVERDARK', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
+    tb8.ToolbarBmp := LoadImage(Hinstance, 'PROLIVKA', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
+    Npp_Send(NPPM_ADDTOOLBARICON_FORDARKMODE, WPARAM(self.CmdIdFromDlgId(1)), LPARAM(@tb8));
 
-  tb.ToolbarIcon := 0;
-  tb.ToolbarBmp := LoadImage(Hinstance, 'SQL', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
-  Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(2)), LPARAM(@tb));
+    tb8.ToolbarIcon := LoadImage(Hinstance, 'ISQL', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
+    tb8.ToolbarIconDarkMode := LoadImage(Hinstance, 'ISQLDARK', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
+    tb8.ToolbarBmp := LoadImage(Hinstance, 'SQL', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
+    Npp_Send(NPPM_ADDTOOLBARICON_FORDARKMODE, WPARAM(self.CmdIdFromDlgId(2)), LPARAM(@tb8));
 
-  tb.ToolbarIcon := 0;
-  tb.ToolbarBmp := LoadImage(Hinstance, 'PLANBUTTON', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
-  Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(3)), LPARAM(@tb));
+    tb8.ToolbarIcon := LoadImage(Hinstance, 'IPLAN', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
+    tb8.ToolbarIconDarkMode := LoadImage(Hinstance, 'IPLANDARK', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
+    tb8.ToolbarBmp := LoadImage(Hinstance, 'PLAN', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
+    Npp_Send(NPPM_ADDTOOLBARICON_FORDARKMODE, WPARAM(self.CmdIdFromDlgId(3)), LPARAM(@tb8));
+  end
+  else
+  begin
+    tb.ToolbarIcon := 0;
+    tb.ToolbarBmp := LoadImage(Hinstance, 'TREE', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
+    Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(0)), LPARAM(@tb));
+
+    tb.ToolbarIcon := 0;
+    tb.ToolbarBmp := LoadImage(Hinstance, 'PROLIVKA', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
+    Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(1)), LPARAM(@tb));
+
+    tb.ToolbarIcon := 0;
+    tb.ToolbarBmp := LoadImage(Hinstance, 'SQL', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
+    Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(2)), LPARAM(@tb));
+
+    tb.ToolbarIcon := 0;
+    tb.ToolbarBmp := LoadImage(Hinstance, 'PLAN', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
+    Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(3)), LPARAM(@tb));
+  end;
+
+
 end;
 
 procedure TdiaPlugin.FuncAlignCode;
@@ -336,6 +380,23 @@ begin
     end;
   finally
     Strings.Free;
+  end;
+end;
+
+procedure TdiaPlugin.FuncExecHelpSQL(help: THelpType; S: string);
+var N: integer;
+begin
+  if not Assigned(FLogForm) then
+  begin
+    FLogForm := TLogForm.Create(self, 0);
+    TLogForm(FLogForm).DoConnect;
+  end
+  else
+  begin
+    N := Length(S);
+
+    if (N > 1) and Assigned(FLogForm) then
+      TLogForm(FLogForm).DoHelpSql(help,S);
   end;
 end;
 
@@ -411,6 +472,7 @@ procedure TdiaPlugin.FuncInsertParam;
           S := RemoveComments(Copy(Strings[i],1,iPos-1));
           S := StringReplace(S,' ','',[rfReplaceAll]);
           S := StringReplace(S,',','',[rfReplaceAll]);
+          S := StringReplace(S,'declare','',[rfReplaceAll]);
           S := trimleft(S);
           if (S <>'') and CheckLeftSymbols then
           begin
@@ -460,7 +522,6 @@ const NoDuplicates = True;
 var
   S0,SText: AnsiString;
   Strings,Strings1: TStringList;
-  Range: TCharacterRange;
   i,j,iPos: Integer;
 begin
   S0 := SelectedText;
@@ -468,9 +529,11 @@ begin
   if Assigned(Strings) then
   begin
     try
-      Range.cpMin := 0;
-      Range.cpMax := CurrentPos;
-      SText := RemoveComments(GetTextRange(Range));
+      SText := GetText;
+      //iPos := Pos(S0,SText);
+      //SText := Copy(SText,1,iPos-1);
+
+      SText := RemoveComments(SText);
       Strings1 := RemoveStringsAboveStartProc(SText);
       try
         Strings1.Text := RemoveComments(Strings1.Text);
@@ -520,10 +583,10 @@ begin
   (FLogForm as TLogForm).Show;
 end;
 
-procedure TdiaPlugin.FuncPrForm(const Server: string = ''; const Base: string = '');
+procedure TdiaPlugin.FuncPrForm;
 begin
-  if not Assigned(Fpr) then Fpr := Tpr.Create(self, 0);
-  (Fpr as Tpr).DoPrForm(Server,Base);
+  if not Assigned(FLogForm) then FLogForm := TLogForm.Create(self, 0);
+  (FLogForm as TLogForm).DoPrForm;
 end;
 
 procedure TdiaPlugin.FuncReplaceProcParams;
@@ -637,7 +700,7 @@ begin
   end;
 
   if N > 1 then
-    FuncExecThisSQL('sp_help ' + S);
+    FuncExecHelpSQL(spHelp,S);
 end;
 
 procedure TdiaPlugin.FuncSP_HELPINDEX;
@@ -654,11 +717,28 @@ begin
   end;
 
   if N > 1 then
-    FuncExecThisSQL('sp_helpindex ' + S);
+    FuncExecHelpSQL(spHelpindex,S);
 end;
 
-function TdiaPlugin.GetTextRange(const Range: TCharacterRange): nppString;
-var pt: PTextRange; {Возвращает текст внутри переданного диапазона}
+procedure TdiaPlugin.FuncSP_HELPTEXT;
+var S: string;
+    N: integer;
+begin
+  S := SelectedText;
+  N := Length(S);
+
+  if N = 0 then
+  begin
+    S := GetWord;
+    N := Length(S);
+  end;
+
+  if N > 1 then
+    FuncExecHelpSQL(spHelptext,S);
+end;
+
+{function TdiaPlugin.GetTextRange(const Range: TCharacterRange): nppString;
+var pt: PTextRange; //Возвращает текст внутри переданного диапазона
     Size: LRESULT;
     S: AnsiString;
 begin
@@ -668,14 +748,15 @@ begin
   try
     pt^.chrg := Range;
     Sci_Send(SCI_GETTEXTRANGE,0,LPARAM(pt));
-    SetLength(S,Size-1);
+    if not HasV5Apis then
+      SetLength(S,Size-1);
     StrLCopy(PAnsiChar(S),pt^.lpstrText,Size-1);
   finally
     FreeMem(pt^.lpstrText,Size);
     FreeMem(pt,SizeOf(TTextRange));
     Result := S;
   end;
-end;
+end;}
 
 procedure TdiaPlugin.DoNppnUpdateAutoSelection(P: PAnsiChar);
 var

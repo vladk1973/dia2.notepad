@@ -7,22 +7,27 @@ uses Winapi.Windows, Winapi.Messages, System.StrUtils,
 
 type
   TCommand = string;
-  TPath = string;
+  TPathName = string;
+  TFileName = string;
 
   TModalResultArray = array[False..True] of TModalResult;
   TGarbageArray   = array[0..9] of string;
-  TBeginProcArray = array[0..3] of string;
-  TBeginAlignArray = array[0..3] of string;
+  TBeginProcArray = array[0..4] of string;
+  TBeginAlignArray = array[0..9] of string;
 
   TShowMode = (shSql,shPr,shCI);
 
-  TBdType = (bdMSSQL, bdSybase, bdODBC);
+  TBdType = (bdMSSQL, bdSybase, bdPostgreSQL, bdODBC);
   TBdTypeStringArray = array [TBdType] of string;
 
-  TItemType = (itServerMS,itServerSYB,itODBC,itBase,itBaseRTI,itLogin);
+  //В TItemType - порядок типов должен совпадать с TBdType
+  TItemType = (itServerMS,itServerSYB,itServerPostgreSQL,itODBC,itBase,itBaseRTI,itLogin);
 
   TTracingChar = array[0..1] of integer;
-  TDSTypeArray = array[0..51] of string;
+  TDSTypeArray = array[0..54] of string;
+
+  THelpType = (spHelp, spHelpindex, spHelpText);
+  THelpArray = array[TBdType,THelpType] of string;
 
 const
 
@@ -37,13 +42,18 @@ const
 
   cnstFileCopyError = 'Не удалось скопировать файл в %s';
   cnstFileCopyErrorCaption = 'Ошибка копирования файла';
+
   cnstBatch = 'cmd.exe /D /C "set keep_tfiles=true&&cls&&..\serv %s"';
+  cnstConvert = 'curl --location --request POST "http://postgrefagl:8089/v1/batch" --header "Content-Type: application/octet-stream" --data-binary @"%s"';
   cnstT01 = '.t01';
   cnstServersKey = 'Software\Diasoft 5NT\Servers';
   cnstDllKey = 'Software\dia2notepad';
   cnstPrFormKey = 'PrForm';
   cnstPrHistKey = 'PrPathHistory';
   cnstPrClearMenuItemCaption = 'Очистить историю папок проливки';
+
+  constDBList = 'select name from master..sysdatabases order by name';
+  constPostgreDBList = 'SELECT datname FROM pg_database;';
 
   cnstBSL_B = 'M_BUSINESSLOG_BEGIN';
   cnstBSBL_B = 'M_BUSINESSLOG_BLOCK_BEGIN(''%s'')'#13#10'M_BUSINESSLOG_BLOCK_END(''%0:s'')';
@@ -73,7 +83,8 @@ const
     'create proc ',
     'create procedure ',
     'dcl_proc_begin(',
-    'api_create_proc('
+    'api_create_proc(',
+    'create or replace '
     {'create trigger',
     'create view ',
     'create table ',
@@ -85,13 +96,36 @@ const
     'declare',
     'execute',
     'exec'   ,
-    '@'
+    '@',
+    'select',
+    'if',
+    'begin',
+    'insert',
+    'delete',
+    'while'
     );
 
   cnstShowPlanXML_ON = 'SET SHOWPLAN_XML ON';
   cnstShowPlanXML_OFF = 'SET SHOWPLAN_XML OFF';
   cnstShowPlan_ON = 'set showplan on';
   cnstShowPlan_OFF = 'set showplan off';
+
+  cnstShowSpHelp = 'sp_help %s';
+  cnstShowSpHelpIndex = 'sp_helpindex %s';
+  cnstShowSpHelpText = 'sp_helptext %s';
+
+
+  cnstShowPlan_PostgreSQL = 'EXPLAIN ';
+  cnstShowSpHelp_PostgreSQL = 'SELECT ''%s'' AS name;'+sLineBreak+
+                              'SELECT * FROM information_schema.columns WHERE table_name = ''%0:s'';'+sLineBreak+
+                              'SELECT * FROM pg_indexes WHERE tablename = ''%0:s'';';
+  cnstShowSpHelpIndex_PostgreSQL = 'SELECT * FROM pg_indexes WHERE tablename = ''%s'';';
+  cnstShowSpHelpText_PostgreSQL = 'SELECT'+sLineBreak+
+                                    'pg_get_functiondef(('+sLineBreak+
+                                                        'SELECT'+sLineBreak+
+                                                        'oid FROM pg_proc'+sLineBreak+
+                                                        'WHERE'+sLineBreak+
+                                                        'proname = ''%s''));';
   cnstAseOleDB = '[ASEOLEDB]';
   cnstShowPlan = 'PLAN:';
   cnstShowIndx = 'INDX:';
@@ -104,6 +138,12 @@ const
 
   cnstT1 = 'join ';
   cnstT2 = 'from ';
+
+  cnstHelpArray: THelpArray = ((cnstShowSpHelp,cnstShowSpHelpIndex,cnstShowSpHelpText),
+                               (cnstShowSpHelp,cnstShowSpHelpIndex,cnstShowSpHelpText),
+                               (cnstShowSpHelp_PostgreSQL,cnstShowSpHelpIndex_PostgreSQL,cnstShowSpHelpText_PostgreSQL),
+                               ('%s','%s','%s')
+                              );
 
   MS =
     'M_NOLOCK (NOLOCK)'#13#10+
@@ -135,8 +175,13 @@ const
     'M_FORCEORDER option (FORCE ORDER, LOOP JOIN, KEEPFIXED PLAN)'#13#10+
     'M_FORCEORDER_FAST option (FORCE ORDER, LOOP JOIN, KEEPFIXED PLAN, FAST 1)'#13#10+
     'M_FORCESEEK_INDEX(<IND>) WITH (NOLOCK, INDEX=<IND>)'#13#10+
+//    'M_FORCESEEK_INDEX_COL(<IND>,<COL>) WITH (NOLOCK, FORCESEEK (<IND> (<COL>)))'#13#10+
+    'M_FORCESEEK_INDEX_COL(<IND>,<COL>) WITH (NOLOCK, INDEX=<IND>)'#13#10+
     'M_UPDLOCK_FORCESEEK_INDEX(<IND>) WITH (rowlock, updlock INDEX=<IND>)'#13#10+
-    'M_ROWLOCK_FORCESEEK_INDEX(<IND>) WITH (rowlock INDEX=<IND>)';
+    'M_ROWLOCK_FORCESEEK_INDEX(<IND>) WITH (rowlock INDEX=<IND>)'#13#10+
+    'M_UPDLOCK_FORCESEEK_INDEX_COL(<IND>,<COL>) WITH (rowlock, updlock INDEX=<IND>)'#13#10+
+    'M_ROWLOCK_FORCESEEK_INDEX_COL(<IND>,<COL>) WITH (rowlock INDEX=<IND>)';
+
 
   SYB =
     'M_NOLOCK /*NOLOCK*/'#13#10+
@@ -168,8 +213,12 @@ const
     'M_FORCEORDER /* option (FORCE ORDER, LOOP JOIN) */'#13#10+
     'M_FORCEORDER_FAST /* option (FORCE ORDER, LOOP JOIN, KEEPFIXED PLAN, FAST 1) */'#13#10+
     'M_FORCESEEK_INDEX(<IND>) (INDEX <IND>)'#13#10+
+    'M_FORCESEEK_INDEX_COL(<IND>,<COL>) (INDEX <IND>)'#13#10+
     'M_UPDLOCK_FORCESEEK_INDEX(<IND>) (INDEX <IND>)'#13#10+
-    'M_ROWLOCK_FORCESEEK_INDEX(<IND>) (INDEX <IND>)';
+    'M_ROWLOCK_FORCESEEK_INDEX(<IND>) (INDEX <IND>)'#13#10+
+    'M_UPDLOCK_FORCESEEK_INDEX_COL(<IND>,<COL>) (INDEX <IND>)'#13#10+
+    'M_ROWLOCK_FORCESEEK_INDEX_COL(<IND>,<COL>) (INDEX <IND>)';
+
 
   M_CONST =
     'NULLDATE=''19000101'''#13#10+
@@ -228,12 +277,150 @@ const
     'DSVARFULLNAME=varchar(60)',
     'DSVARFULLNAME160=varchar(160)',
     'DSVARFULLNAME40=varchar(40)',
-    'DSVARINDEX=varchar(6)'
+    'DSVARINDEX=varchar(6)',
+    'FTIDENTIFIER_NULL=numeric(15,0)',
+    'DSVARBINARY_MAX=DSVARBINARY_MAX',
+    'DSVARCHAR_MAX=DSVARCHAR_MAX'
     );
 
 
+  constSQL_RTI_Get_PostgreSQL =
+  'do $$                                                                 '+sLineBreak+
+  'DECLARE                                                               '+sLineBreak+
+  'var_UserID DSIDENTIFIER;                                              '+sLineBreak+
+  'var_HostName DSCOMMENT;                                               '+sLineBreak+
+  'var_tempSelect record;                                                '+sLineBreak+
+  'var_MinNumber DSIDENTIFIER;                                           '+sLineBreak+
+  'var_ImplicitCallerRetVal int;                                         '+sLineBreak+
+  'var_ImplicitResultSet refcursor := ''var_implicitresultset'';         '+sLineBreak+
+  '                                                                      '+sLineBreak+
+  'BEGIN                                                                 '+sLineBreak+
+  'SELECT %15.0f     INTO var_MinNumber LIMIT 1;                         '+sLineBreak+
+  'SELECT UserID                                                         '+sLineBreak+
+  '  INTO var_tempSelect                                                 '+sLineBreak+
+  '  FROM tUser                                                          '+sLineBreak+
+  ' WHERE lower(Brief) = lower(CAST(suser_sname() AS char (30))) LIMIT 1;'+sLineBreak+
+  'IF found THEN                                                         '+sLineBreak+
+  'var_UserID := var_tempSelect.UserID;                                  '+sLineBreak+
+  'END IF;                                                               '+sLineBreak+
+  'SELECT host_name()::DSCOMMENT INTO var_HostName;                      '+sLineBreak+
+  'open var_ImplicitResultSet FOR                                        '+sLineBreak+
+  'SELECT ProcessID, Number, UserID, HostName,                           '+sLineBreak+
+  '       DsSysModuleID, InDateTime, Message                             '+sLineBreak+
+  '  FROM tLogMessage                                                    '+sLineBreak+
+  ' WHERE UserID   = var_UserID                                          '+sLineBreak+
+  '   AND HostName = var_HostName                                        '+sLineBreak+
+  '   AND Number   > var_MinNumber                                       '+sLineBreak+
+  'ORDER BY Number                                                       '+sLineBreak+
+  'LIMIT 5000;                                                           '+sLineBreak+
+  'END                                                                   '+sLineBreak+
+  '$$;                                                                   '+sLineBreak+
+  'fetch all from var_ImplicitResultSet;                                 ';
+
+  {'SELECT ProcessID, Number, UserID, HostName,                           '+sLineBreak+
+  '       DsSysModuleID, InDateTime, Message                             '+sLineBreak+
+  '  FROM tLogMessage                                                    '+sLineBreak+
+  ' WHERE UserID   = 1                                          '+sLineBreak+
+  '   AND Number   > %15.0f                                         '+sLineBreak+
+  'ORDER BY Number                                                       '+sLineBreak+
+  'LIMIT 5000                                                           ';}
 
 
+  constSQL_RTI_Clear_PostgreSQL =
+  'do $$                                                                     '+sLineBreak+
+  'DECLARE                                                                   '+sLineBreak+
+  'var_UserID DSIDENTIFIER;                                                  '+sLineBreak+
+  'var_HostName DSCOMMENT;                                                   '+sLineBreak+
+  'var_RetVal DSINT_KEY;                                                     '+sLineBreak+
+  'var_tempSelect record;                                                    '+sLineBreak+
+  'var_ImplicitCallerRetVal int;                                             '+sLineBreak+
+  'var_ImplicitResultSet refcursor := ''var_implicitresultset'';             '+sLineBreak+
+  '                                                                          '+sLineBreak+
+  'BEGIN                                                                     '+sLineBreak+
+  'SELECT coalesce(0, 0)                                                     '+sLineBreak+
+  '  INTO var_UserID LIMIT 1;                                                '+sLineBreak+
+  'IF var_UserID = 0 THEN                                                    '+sLineBreak+
+  'SELECT UserID                                                             '+sLineBreak+
+  '  INTO var_tempSelect                                                     '+sLineBreak+
+  '  FROM tUser                                                              '+sLineBreak+
+  ' WHERE lower(Brief) = lower(CAST(suser_sname() AS char (30))) LIMIT 1;    '+sLineBreak+
+  'IF found THEN                                                             '+sLineBreak+
+  'var_UserID := var_tempSelect.UserID;                                      '+sLineBreak+
+  'END IF;                                                                   '+sLineBreak+
+  'END IF;                                                                   '+sLineBreak+
+  'SELECT host_name()::DSCOMMENT,                                            '+sLineBreak+
+  '       0                                                                  '+sLineBreak+
+  '  INTO var_HostName,                                                      '+sLineBreak+
+  '       var_RetVal;                                                        '+sLineBreak+
+  '                                                                          '+sLineBreak+
+  '                                                                          '+sLineBreak+
+  'WHILE var_HostName <> '''' AND var_RetVal = 0 LOOP                        '+sLineBreak+
+  'CALL FCD_10_Log_Delete(                                                   '+sLineBreak+
+  '       var_ImplicitCallerRetVal,                                          '+sLineBreak+
+  '       var_ImplicitResultSet,                                             '+sLineBreak+
+  '       var_Mode => 0,                                                     '+sLineBreak+
+  '       var_UserID => var_UserID,                                          '+sLineBreak+
+  '       var_HostName => var_HostName                                       '+sLineBreak+
+  ');                                                                        '+sLineBreak+
+  'var_RetVal := var_ImplicitCallerRetVal;                                   '+sLineBreak+
+  'SELECT ''''                                                               '+sLineBreak+
+  '  INTO var_HostName LIMIT 1;                                              '+sLineBreak+
+  'SELECT HostName                                                           '+sLineBreak+
+  '  INTO var_tempSelect                                                     '+sLineBreak+
+  '  FROM tLogMessage                                                        '+sLineBreak+
+  ' WHERE UserID = var_UserID LIMIT 1;                                       '+sLineBreak+
+  'IF found THEN                                                             '+sLineBreak+
+  'var_HostName := var_tempSelect.HostName;                                  '+sLineBreak+
+  'END IF;                                                                   '+sLineBreak+
+  '                                                                          '+sLineBreak+
+  'END LOOP;                                                                 '+sLineBreak+
+  'open var_ImplicitResultSet FOR SELECT coalesce(var_RetVal, 0) AS "Error"; '+sLineBreak+
+  'END                                                                       '+sLineBreak+
+  '$$;                                                                       '+sLineBreak+
+  'fetch all from var_implicitresultset;                                     ';
+
+  constSQL_RTI_PostgreSQL =
+  'do $$                                                          '+sLineBreak+
+  'DECLARE                                                        '+sLineBreak+
+  'var_HostName DSCOMMENT;                                        '+sLineBreak+
+  'var_ImplicitCallerRetVal int;                                  '+sLineBreak+
+  'var_ImplicitResultSet refcursor := ''var_implicitresultset'';  '+sLineBreak+
+  '                                                               '+sLineBreak+
+  'BEGIN                                                          '+sLineBreak+
+  'SELECT host_name()::DSCOMMENT INTO var_HostName;               '+sLineBreak+
+  'CALL FCD_10_Log_SaveOption(                                    '+sLineBreak+
+  '       var_ImplicitCallerRetVal,                               '+sLineBreak+
+  '       var_ImplicitResultSet,                                  '+sLineBreak+
+  '       var_UserID => 0,                                        '+sLineBreak+
+  '       var_HostName => var_HostName,                           '+sLineBreak+
+  '       var_ActivateClientFlag => %d,                           '+sLineBreak+
+  '       var_AClientSQLBatch => 1,                               '+sLineBreak+
+  '       var_AClientSQLStat => 0,                                '+sLineBreak+
+  '       var_AClientSQLTrancount => 0,                           '+sLineBreak+
+  '       var_AClientProc => 1,                                   '+sLineBreak+
+  '       var_AClientProcParam => 0,                              '+sLineBreak+
+  '       var_AClientTrace => 0,                                  '+sLineBreak+
+  '       var_AClientDebug => 1,                                  '+sLineBreak+
+  '       var_AClientInfo => 1,                                   '+sLineBreak+
+  '       var_AClientError => 1,                                  '+sLineBreak+
+  '       var_AClientReWriteLog => 1,                             '+sLineBreak+
+  '       var_ActivateServerFlag => %d,                           '+sLineBreak+
+  '       var_AServerProc => 1,                                   '+sLineBreak+
+  '       var_AServerProcParam => 1,                              '+sLineBreak+
+  '       var_AServerTrace => 1,                                  '+sLineBreak+
+  '       var_AServerDebug => 1,                                  '+sLineBreak+
+  '       var_AServerInfo => 1,                                   '+sLineBreak+
+  '       var_AServerError => 1,                                  '+sLineBreak+
+  '       var_AServerProfile => 0,                                '+sLineBreak+
+  '       var_AServerTable => 1,                                  '+sLineBreak+
+  '       var_AServerBusiness => 1,                               '+sLineBreak+
+  '       var_AServerObjectListID => '''',                        '+sLineBreak+
+  '       var_ATrace => 0                                         '+sLineBreak+
+  ');                                                             '+sLineBreak+
+  'open var_ImplicitResultSet FOR SELECT coalesce(var_ImplicitCallerRetVal, 0) AS "Error";'+sLineBreak+
+  'END                                                            '+sLineBreak+
+  '$$;                                                            '+sLineBreak+
+  'fetch all from var_implicitresultset;                          ';
 
   constSQL_RTI =
                 'declare @Brief DSUSERNAME,                  '#13#10+
@@ -303,14 +490,14 @@ const
                 '                  @UserID   = @UserID  , '#13#10+
                 '                  @HostName = @HostName  '#13#10+
                 '                                         '#13#10+
-                'select 3, ''%s'' as Db, @RetVal as RetVal';
+                'select @RetVal, ''%s'' as Db';
 
 
 //procedure TWatchCore_T.OpenLogMessages(SaveToFileName: string);
   constSQL_RTI_Get = //'M_P_ROWLOCK_READPAST_INDEX(ПРИМЕР_ИНДЕКСА)'#13#10+
                 'declare @UserID    DSIDENTIFIER,                    '#13#10+
                 '        @HostName  DSCOMMENT   ,                    '#13#10+
-                '        @MinNumber numeric(15,0)                    '#13#10+
+                '        @MinNumber DSIDENTIFIER                     '#13#10+
                 '                                                    '#13#10+
                 'select @MinNumber = :MinNumber                      '#13#10+
                 '                                                    '#13#10+
@@ -342,11 +529,24 @@ const
 
   cnstTracingChar: TTracingChar = (40,40);
 
+  constConnectionMSSQL =  'Provider=SQLOLEDB.1;Password=%s;Persist Security Info=True;User ID=%s;%sData Source=%s';
+  constConnectionSybase = 'Provider=ASEOLEDB.1;Password=%s;Persist Security Info=True;User ID=%s;Data Source=%s:%s;%sExtended Properties="LANGUAGE=us_english";Connect Timeout=3';
+  constConnectionPostgre = 'Provider=MSDASQL.1;Password=%s;Persist Security Info=True;User ID=%s;Extended Properties="DRIVER={PostgreSQL Unicode};SERVER=%s;PORT=%s;%s"';
+  constConnectionODBC = 'Provider=MSDASQL.1;Persist Security Info=False;Data Source=%s';
+  constConnectionStringArray: TBdTypeStringArray = (constConnectionMSSQL,
+                                                    constConnectionSybase,
+                                                    constConnectionPostgre,
+                                                    constConnectionODBC);
+
   constLoginBDCaption  = 'Подключение к ';
-  constLoginBDCaptionArray: TBdTypeStringArray = ('MSSQL','Sybase','ODBC');
-  constDSBDCaptionArray: TBdTypeStringArray = ('Сервер','Сервер','Источник');
+  constLoginBDCaptionArray: TBdTypeStringArray = ('MSSQL','Sybase','PostgreSQL','ODBC');
+  constDSBDCaptionArray: TBdTypeStringArray = ('Сервер','Сервер','Сервер','Источник');
+  constLoginBDArray: TBdTypeStringArray = ('sa','sa','postgres','admin');
+
+
   cnstErroCaption = 'Ошибка';
   cnstRecordConfirmation = 'Начать протоколирование на базе %s?';
+
   cnstRecordConfirmRewriteExistingFile = 'Файл с именем "%s" существует. Перезаписать?';
   cnstRecordStopConfirmation = 'Остановить протоколирование на базе %s?';
   cnstRecordClearConfirmation= 'Очистить протоколирование на базе %s?';
@@ -355,6 +555,8 @@ const
   cnstRecordAfterWriteRTIInformationNOFILE = 'Операция выгрузки %s завершена.'#13#10'Файл пустой';
   cnstRecordConfirmationTitle = 'Протоколирование';
   cnstNoBaseSelected = 'Чтобы выполнить SQL запрос, необходимо выбрать сервер и базу!';
+  cnstNoSQLSelected = 'На этот сервер проливка не поддерживается!';
+  cnstNoSQLbaseSelected = 'Чтобы выполнить проливку, необходимо выбрать сервер и базу!';
 
 procedure StringsToAnsi(Strings: TStrings);
 function RemoveGarbage(const S: string): string;

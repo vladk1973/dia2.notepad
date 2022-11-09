@@ -5,7 +5,7 @@
         <FrameworkType>VCL</FrameworkType>
         <MainSource>dia2.notepad.dpr</MainSource>
         <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Release</Config>
+        <Config Condition="'$(Config)'==''">Debug</Config>
         <Platform Condition="'$(Platform)'==''">Win64</Platform>
         <TargetedPlatforms>3</TargetedPlatforms>
         <AppType>Library</AppType>
@@ -92,6 +92,7 @@
         <DCC_UsePackage>DBXSqliteDriver;IndyIPCommon;RESTComponents;bindcompdbx;DBXInterBaseDriver;vcl;IndyIPServer;vclactnband;vclFireDAC;IndySystem;tethering;dsnapcon;FireDACADSDriver;FireDACMSAccDriver;fmxFireDAC;vclimg;TeeDB;FireDAC;vcltouch;vcldb;bindcompfmx;Intraweb;FireDACSqliteDriver;FireDACPgDriver;ibmonitor;inetdb;FMXTee;soaprtl;DbxCommonDriver;FmxTeeUI;ibxpress;FireDACIBDriver;fmx;fmxdae;xmlrtl;soapmidas;fmxobj;vclwinx;ibxbindings;rtl;vclib;DbxClientDriver;Tee;CustomIPTransport;vcldsnap;dbexpress;IndyCore;vclx;bindcomp;appanalytics;dsnap;FireDACCommon;IndyIPClient;bindcompvcl;RESTBackendComponents;TeeUI;VCLRESTComponents;soapserver;dbxcds;VclSmp;adortl;vclie;bindengine;DBXMySQLDriver;CloudService;dsnapxml;FireDACMySQLDriver;dbrtl;IndyProtocols;inetdbxpress;FireDACCommonODBC;FireDACCommonDriver;inet;fmxase;$(DCC_UsePackage)</DCC_UsePackage>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
+        <DCC_ExeOutput>C:\Program Files\Notepad++\plugins\dia2.notepad\</DCC_ExeOutput>
         <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
         <DCC_DebugDCUs>true</DCC_DebugDCUs>
         <DCC_Optimize>false</DCC_Optimize>
@@ -107,10 +108,9 @@
         <DCC_RemoteDebug>false</DCC_RemoteDebug>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win64)'!=''">
-        <DCC_ExeOutput>C:\npp.8.1.4.portable.x64\plugins\dia2.notepad\</DCC_ExeOutput>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <VerInfo_Locale>1033</VerInfo_Locale>
-        <Debugger_HostApplication>C:\npp.8.1.4.portable.x64\notepad++.exe</Debugger_HostApplication>
+        <Debugger_HostApplication>C:\Program Files\Notepad++\notepad++.exe</Debugger_HostApplication>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
@@ -119,14 +119,19 @@
         <DCC_DebugInformation>0</DCC_DebugInformation>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
+        <VerInfo_Release>3</VerInfo_Release>
+        <VerInfo_MajorVer>0</VerInfo_MajorVer>
         <Debugger_HostApplication>C:\Program Files (x86)\Notepad++\notepad++.exe</Debugger_HostApplication>
         <Debugger_LoadAllSymbols>false</Debugger_LoadAllSymbols>
         <VerInfo_DLL>true</VerInfo_DLL>
-        <VerInfo_Keys>CompanyName=Diasoft;FileDescription=Notepad++ Diasoft Plugin;FileVersion=1.0.0.0;InternalName=dia2notepad;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=Diasoft;FileDescription=Notepad++ Diasoft Plugin;FileVersion=0.0.3.0;InternalName=dia2notepad;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <VerInfo_Locale>1049</VerInfo_Locale>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
+        <VerInfo_MajorVer>0</VerInfo_MajorVer>
+        <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=0.0.3.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <VerInfo_Release>3</VerInfo_Release>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <VerInfo_Locale>1033</VerInfo_Locale>
     </PropertyGroup>
@@ -158,26 +163,101 @@
         </DCCReference>
         <DCCReference Include="LogFormHelpersUnit.pas"/>
         <DCCReference Include="TreeViewExUnit.pas"/>
-        <DCCReference Include="prUnit.pas">
-            <Form>pr</Form>
-            <FormType>dfm</FormType>
-        </DCCReference>
         <DCCReference Include="LogWriterUnit.pas"/>
         <DCCReference Include="lookupProcUnit.pas">
             <Form>lForm</Form>
             <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="..\npp.connections\lib\NppDockingForms.pas">
+        <DCCReference Include="lib\NppDockingForms.pas">
             <Form>NppDockingForm</Form>
-            <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="..\npp.connections\lib\NppForms.pas">
+        <DCCReference Include="lib\NppForms.pas">
             <Form>NppForm</Form>
+        </DCCReference>
+        <DCCReference Include="lib\nppplugin.pas"/>
+        <DCCReference Include="lib\SciSupport.pas"/>
+        <DCCReference Include="AlignStringsUnit.pas"/>
+        <DCCReference Include="regUnit.pas"/>
+        <DCCReference Include="CustomDialogUnit.pas">
+            <Form>CustomDialogForm</Form>
             <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="..\npp.connections\lib\nppplugin.pas"/>
-        <DCCReference Include="..\npp.connections\lib\SciSupport.pas"/>
-        <DCCReference Include="AlignStringsUnit.pas"/>
+        <RcItem Include="inclide\bug.bmp">
+            <ResourceType>BITMAP</ResourceType>
+            <ResourceId>BUG</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\bug.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>IBUG</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\plan.bmp">
+            <ResourceType>BITMAP</ResourceType>
+            <ResourceId>PLAN</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\plan.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>IPLAN</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\prolivka.bmp">
+            <ResourceType>BITMAP</ResourceType>
+            <ResourceId>PROLIVKA</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\prolivka.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>IPROLIVKA</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\report.bmp">
+            <ResourceType>BITMAP</ResourceType>
+            <ResourceId>REPORT</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\report.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>IREPORT</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\sql.bmp">
+            <ResourceType>BITMAP</ResourceType>
+            <ResourceId>SQL</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\sql.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>ISQL</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\tree.bmp">
+            <ResourceType>BITMAP</ResourceType>
+            <ResourceId>TREE</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\tree.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>ITREE</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\sqldark.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>ISQLDARK</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\plandark.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>IPLANDARK</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\tree_fluent.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>ITREEF</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\tree_fluentdark.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>ITREEFDARK</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons\plandark.bmp">
+            <ResourceType>BITMAP</ResourceType>
+            <ResourceId>PLANDARK</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons.1\server_button_for_white_mode.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>ISERVER</ResourceId>
+        </RcItem>
+        <RcItem Include="inclide\icons.1\server_button_for_black_mode.ico">
+            <ResourceType>ICON</ResourceType>
+            <ResourceId>ISERVERDARK</ResourceId>
+        </RcItem>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
@@ -217,6 +297,12 @@
                 </DeployFile>
                 <DeployFile LocalName="C:\Program Files (x86)\Notepad++\plugins\dia2.notepad.dll" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win32">
+                        <RemoteName>dia2_notepad.dll</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="C:\Program Files\Notepad++\plugins\dia2.notepad\dia2.notepad.dll" Configuration="Debug" Class="ProjectOutput">
+                    <Platform Name="Win64">
                         <RemoteName>dia2_notepad.dll</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>

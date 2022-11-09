@@ -12,11 +12,15 @@ type
 
   TStringGridEx = class(TStringGrid)
   private
-    FButton: TBitMap;
     FButtonCoord: TPoint;
     FOnButtonClick: TNotifyEvent;
     FOnGetSelectedText: TOnSelectedTextEvent;
     FOnReplaceSelectedText: TOnSelectedTextEvent;
+    FDraw_FontColor: TColor;
+    FDraw_FontHColor: TColor;
+    FDraw_BGColor: TColor;
+    FDraw_BGHColor: TColor;
+    FDraw_HeaderColor: TColor;
     function GetButtonVisible: boolean;
     function DoKeyUp(var Message: TWMKey): Boolean;
     procedure WMKeyDown(var Message: TWMKeyDown); message WM_KEYDOWN;
@@ -31,13 +35,18 @@ type
     property ButtonVisible: boolean read GetButtonVisible;
   public
     constructor Create(AOwner: TComponent); override;
-    destructor Destroy; override;
     function CopyToClipboard: boolean;
     function CopyAllToClipboard: boolean;
     function DeclareVarsToClipboard: boolean;
     property OnButtonClick: TNotifyEvent read FOnButtonClick write FOnButtonClick;
     property OnGetSelectedText: TOnSelectedTextEvent read FOnGetSelectedText write FOnGetSelectedText;
-    property OnReplcaeSelectedText: TOnSelectedTextEvent read FOnReplaceSelectedText write FOnReplaceSelectedText;
+    property OnReplaceSelectedText: TOnSelectedTextEvent read FOnReplaceSelectedText write FOnReplaceSelectedText;
+
+    property Draw_HeaderColor: TColor read FDraw_HeaderColor write FDraw_HeaderColor;
+    property Draw_BGColor: TColor read FDraw_BGColor write FDraw_BGColor;
+    property Draw_FontColor: TColor read FDraw_FontColor write FDraw_FontColor;
+    property Draw_BGHColor: TColor read FDraw_BGHColor write FDraw_BGHColor;
+    property Draw_FontHColor: TColor read FDraw_FontHColor write FDraw_FontHColor;
   end;
 
 implementation
@@ -62,11 +71,6 @@ begin
   Anchors := [akLeft, akTop];
   DoubleBuffered := True;
   TabStop := false;
-
-  FButton := TBitMap.Create;
-  FButton.Transparent := True;
-  FButton.LoadFromResourceName(HInstance,'PLANBUTTON');
-  //FButton.Handle := LoadImage(HInstance, 'THEBUTTON', IMAGE_ICON, X, X, LR_DEFAULTCOLOR);
 end;
 
 function TStringGridEx.DeclareVarsToClipboard: boolean;
@@ -176,38 +180,25 @@ begin
   end;
 end;
 
-destructor TStringGridEx.Destroy;
-begin
-  FButton.Free;
-  inherited;
-end;
-
 procedure TStringGridEx.DrawCell(ACol, ARow: Integer; ARect: TRect;
   AState: TGridDrawState);
 var
   Hold: Integer;
   bColor, predColorB, fColor, predColorF: TColor;
   S: string;
+  FButton: TBitMap;
 begin
-  if UseRightToLeftAlignment then
-  begin
-    ARect.Left := ClientWidth - ARect.Left;
-    ARect.Right := ClientWidth - ARect.Right;
-    Hold := ARect.Left;
-    ARect.Left := ARect.Right;
-    ARect.Right := Hold;
-    ChangeGridOrientation(False);
-  end;
-
   with Canvas do
   begin
     predColorB := Brush.Color;
     predColorF := Font.Color;
     try
-      fColor := clBlack;
+      fColor := FDraw_FontColor; //clBlack;
       S := TStringGrid(Self).Cells[ACol, ARow];
+      if Length(S)>1024 then S := Copy(S,1,1024) + '...';
 
-      bColor := clWhite;
+
+      bColor := FDraw_BGColor; //clWhite;
 
       if (gdFixed in AState) then
         Font.Style := Font.Style + [fsBold]
@@ -218,14 +209,14 @@ begin
       begin
         if (RowCount > 1) and (ColCount > 1) then
         begin
-          bColor := clHighlight;
-          fColor := clHighlightText;
+          bColor := FDraw_BGHColor; //clHighlight;
+          fColor := FDraw_FontHColor; //clHighlightText;
         end;
       end;
 
       if gdFixed in AState then
       begin
-        bColor := clBtnFace;
+        bColor := FDraw_HeaderColor; //clBtnFace;
       end;
 
       Brush.Color := bColor;
@@ -237,9 +228,21 @@ begin
 
       if (ACol = 0) and (ARow = 1) and ButtonVisible then
       begin
-        FButtonCoord.X := ARect.Right - FButton.Width - 1;
-        FButtonCoord.Y := ARect.Top+1;
-        Canvas.Draw(FButtonCoord.X,FButtonCoord.Y,FButton);
+        FButton := TBitMap.Create;
+        try
+          if FDraw_BGColor = clWhite then
+            FButton.LoadFromResourceName(HInstance,'PLAN')
+          else
+            FButton.LoadFromResourceName(HInstance,'PLANDARK');
+          FButton.Transparent := True;
+
+          FButtonCoord.X := ARect.Right - FButton.Width - 1;
+          FButtonCoord.Y := ARect.Top+1;
+
+          Canvas.Draw(FButtonCoord.X,FButtonCoord.Y,FButton);
+        finally
+          FButton.Free;
+        end;
       end;
 
     finally
@@ -247,7 +250,6 @@ begin
       Font.Color  := predColorF;
     end;
   end;
-  if UseRightToLeftAlignment then ChangeGridOrientation(True);
 end;
 
 procedure TStringGridEx.MouseUp(Button: TMouseButton; Shift: TShiftState;
@@ -261,8 +263,8 @@ begin
     Cell := MouseCoord(X,Y);
     if (Cell.X = 0) and (Cell.Y = 1) and ButtonVisible then
     begin
-      if (X >= FButtonCoord.X) and (X <= FButtonCoord.X + FButton.Width)
-        and (Y >= FButtonCoord.Y) and (Y <= FButtonCoord.Y + FButton.Height) then
+      if (X >= FButtonCoord.X) and (X <= FButtonCoord.X + 16)
+        and (Y >= FButtonCoord.Y) and (Y <= FButtonCoord.Y + 16) then
         if Assigned(FOnButtonClick) then FOnButtonClick(Self);
     end;
   end;
