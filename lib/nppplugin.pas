@@ -773,6 +773,7 @@ type
     procedure MessageProc(var Msg: TMessage); virtual;
 
     // hooks
+    procedure DoNppnCode(code: NativeInt); virtual; abstract;
     procedure DoNppnShutdown; virtual;
     procedure DoNppnModified(sn: PSCNotification); virtual;
     procedure DoNppnFileOpened(sn: PSCNotification); virtual;
@@ -947,7 +948,6 @@ begin
     self.DoChangePluginTheme;
   end;
 
-
   if (HWND(sn^.nmhdr.hwndFrom) = self.NppData.NppHandle)
     and (sn^.nmhdr.code = NPPN_BUFFERACTIVATED) then
   begin
@@ -982,6 +982,7 @@ begin
     and (sn^.nmhdr.code = SCN_AUTOCSELECTION) then
       DoNppnUpdateAutoSelection(sn^.text);
 
+  {if (HWND(sn^.nmhdr.hwndFrom) = ScintillaHandle) then DoNppnCode(sn^.nmhdr.code);}
 end;
 
 procedure TNppPlugin.MessageProc(var Msg: TMessage);
