@@ -115,6 +115,8 @@ type
     SYBASE1: TMenuItem;
     POSTGRESQL2: TMenuItem;
     ODBC1: TMenuItem;
+    AfterTableListAction: TAction;
+    TableListAction: TAction;
     procedure FormCreate(Sender: TObject);
     procedure SQLActionExecute(Sender: TObject);
     procedure CopyAllGridActionExecute(Sender: TObject);
@@ -166,6 +168,9 @@ type
     procedure InstallerLogActionExecute(Sender: TObject);
     procedure CopyLogActionExecute(Sender: TObject);
     procedure MSSQL1Click(Sender: TObject);
+    procedure AfterTableListActionExecute(Sender: TObject);
+    procedure TableListActionExecute(Sender: TObject);
+    procedure TreeViewChange(Sender: TObject; Node: TTreeNode);
   private
     msTreeView: TTreeViewEx;
     sybTreeView: TTreeViewEx;
@@ -214,6 +219,7 @@ type
     procedure DoHelpSql(help: THelpType; const SqlText: string);
     procedure DoSql(const SqlText: string);
     procedure DoSqlIndex(const SqlText: string);
+    procedure DoSqlGetTableList(const SqlTableText: string);
     procedure DoConnect;
   end;
 
@@ -606,6 +612,20 @@ begin
     TDiaPlugin(Npp).ShowAutocompletion(Obj.Description,Obj.Indexes);
 end;
 
+procedure TlogForm.AfterTableListActionExecute(Sender: TObject);
+var
+  Obj: TTableListObject;
+begin
+  TdiaPlugin(Npp).SetCursor(crNormal);
+  Obj := TTableListObject(TAction(Sender).Tag);
+  if (Obj.ErrMessage = '') and (Obj.TableList.Count>0) then
+  begin
+    Obj.Node.TableList.Clear;
+    Obj.Node.TableList.Assign(Obj.TableList);
+    if Obj.Description<>'' then DoSqlGetTableList(Obj.Description);
+  end;
+end;
+
 procedure TlogForm.AfterWriteRTIActionExecute(Sender: TObject);
 var
   Obj: TSqlQueryRTIObject;
@@ -805,6 +825,42 @@ begin
     MessageError(cnstNoBaseSelected,cnstErroCaption);
 end;
 
+procedure TlogForm.DoSqlGetTableList(const SqlTableText: string);
+var
+  TreeNode: TTreeNode;
+  S: string;
+  iPos,iLastPos: integer;
+begin
+  TreeNode := BasesPanel.CurrentNode;
+  if Assigned(TreeNode) and (TreeNode.ItemType in [itBase,itBaseRTI]) then
+  begin
+    if TreeNode.TableList.Count>0 then
+    begin
+      TreeNode.TableList.Delimiter := ' ';
+      S := ' ' + TreeNode.TableList.DelimitedText;
+      iPos := S.IndexOf(' '+SqlTableText);
+      if iPos>=0 then
+      begin
+        iLastPos := S.LastIndexOf(' '+SqlTableText);
+        if iLastPos<iPos then iLastPos := iPos;
+
+        iLastPos := S.IndexOf(' ',iLastPos+1);
+        if iLastPos<0 then
+          S := S.Substring(iPos+1,MaxInt)
+        else
+          S := S.Substring(iPos+1,iLastPos-iPos-1);
+
+        TDiaPlugin(Npp).ShowAutocompletionTableList(Length(SqlTableText), S);
+      end;
+    end
+    else
+    begin
+      TableListAction.Hint := SqlTableText;
+      TableListAction.Execute;
+    end;
+  end;
+end;
+
 procedure TlogForm.DoSqlIndex(const SqlText: string);
 var
   SqlThread: TSqlIndexObject;
@@ -846,17 +902,19 @@ begin
   LogBox.Align := alClient;
 
   msTreeView := TTreeViewEx.Create(Self);
+  msTreeView.OnChange := TreeViewChange;
   msTreeView.Parent := BasesPanel;
   msTreeView.PopupMenu := TreeViewPopupMenu;
   msTreeView.BdType := bdMSSQL;
 
-
   sybTreeView := TTreeViewEx.Create(Self);
+  sybTreeView.OnChange := TreeViewChange;
   sybTreeView.Parent := BasesPanel;
   sybTreeView.PopupMenu := TreeViewPopupMenu;
   sybTreeView.BdType := bdSybase;
 
   postgresqlTreeView := TTreeViewEx.Create(Self);
+  postgresqlTreeView.OnChange := TreeViewChange;
   postgresqlTreeView.Parent := BasesPanel;
   postgresqlTreeView.PopupMenu := TreeViewPopupMenu;
   postgresqlTreeView.BdType := bdPostgreSQL;
@@ -1369,7 +1427,7 @@ begin
   if DarkMode then
     Result := RGB(GetRValue(Parent.Color)+20,GetGValue(Parent.Color)+20,GetBValue(Parent.Color)+20)
   else
-    Result := clMenuHighlight;
+    Result := RGB(144,200,246);
 end;
 
 procedure TlogForm.P1MouseLeave(Sender: TObject);
@@ -1734,6 +1792,58 @@ begin
     Data := TTreeNodeEx(TreeNode).DataSource;
     TOptionsReg.DeleteFavoriteConnection(BasesPanel.BdType,Data.Substring(0,Data.IndexOf('|')) + UserName(Data));
   end;
+end;
+
+procedure TlogForm.TableListActionExecute(Sender: TObject);
+var
+  SqlThread: TTableListObject;
+  CString,CName: string;
+  TreeNode: TTreeNode;
+begin
+  TreeNode := BasesPanel.CurrentNode;
+  if Assigned(TreeNode) then
+    if (TreeNode.ItemType in [itBase,itBaseRTI]) and (TreeNode.TableList.Count=0) then
+    begin
+      if BasesPanel.BdType = bdODBC then Exit;
+      CString := BasesPanel.ConnectionString;
+      CName := Format(cnstSqlExec,[
+                                   BasesPanel.CurrentServer,
+                                   BasesPanel.CurrentBase,
+                                   BasesPanel.CurrentUser
+                                   ]);
+      if CString = '' then
+      begin
+        CString := CurrentScrollBox.ConnectionString;
+        CName   := CurrentScrollBox.Description;
+      end;
+
+      if CString <> '' then
+      begin
+        TdiaPlugin(Npp).SetCursor(crWait);
+        SqlThread := TTableListObject.Create;
+        SqlThread.SQL.Text := '';
+        SqlThread.Description := TableListAction.Hint;
+        SqlThread.BdType := BasesPanel.BdType;
+        SqlThread.Name := CName;
+        SqlThread.Node := TreeNode;
+        SqlThread.ConnectionString := CString;
+        SqlThread.OnAfterAction := AfterTableListAction;
+        SqlThread.WinHandle := self.Handle;
+        SqlThread.Start;
+      end;
+    end;
+  TableListAction.Hint := '';
+end;
+
+procedure TlogForm.TreeViewChange(Sender: TObject; Node: TTreeNode);
+begin
+  if Assigned(Node) and not Application.Terminated then
+    if (Node.ItemType in [itBase,itBaseRTI]) and (Node.TableList.Count>0) then
+    begin
+      Node.TableList.Clear;
+      TableListAction.Hint := '';
+      TableListAction.Execute;
+    end;
 end;
 
 procedure TlogForm.TreeViewPopupMenuPopup(Sender: TObject);

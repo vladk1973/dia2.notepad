@@ -4,9 +4,9 @@ interface
 
 uses
   Winapi.Windows,  Winapi.Messages, System.SysUtils,
-  Vcl.Dialogs, Vcl.Forms, Vcl.Controls,
+  Vcl.Dialogs, Vcl.Forms, Vcl.Controls, Vcl.StdCtrls,
   System.Classes, Vcl.ComCtrls, SciSupport, System.Contnrs, System.Math,
-  NppPlugin, ConstUnit, logFormUnit, AlignStringsUnit;
+  NppPlugin, ConstUnit, logFormUnit;
 
 type
 
@@ -16,10 +16,11 @@ type
     FLogForm: TLogForm;
     procedure DoNppnTracingCharAdded(const Key: Integer);
     function CurrentPos: LRESULT;
-   // function GetTextRange(const Range: TCharacterRange): nppString;
+    function GetTextRange(const Range: TCharacterRange): nppString;
   public
     constructor Create;
 
+    procedure DoNppnCode(code: NativeInt);override;
     procedure DoNppnToolbarModification; override;
     procedure DoNppnCharAdded(const ASCIIKey: Integer); override;
     procedure DoNppnModified(sn: PSCNotification); override;
@@ -27,6 +28,9 @@ type
     procedure DoChangePluginTheme; override;
     procedure DoNppnShutdown; override;
 
+    procedure SetCursor(const Mode: TCursorMode);
+
+    procedure ShowAutocompletionTableList(const lengthEntered: NativeInt; Tables: AnsiString);
     procedure ShowAutocompletion(const TableName: string; Indx: TStringList);
     procedure FuncLog;
     procedure FuncPrForm;
@@ -36,11 +40,10 @@ type
     procedure FuncExecSQLPlan;
     procedure FuncInsertText(const S: string);
     procedure FuncInsertParam;
-    procedure FuncReplaceProcParams;
     procedure FuncSP_HELP;
     procedure FuncSP_HELPINDEX;
     procedure FuncSP_HELPTEXT;
-    procedure FuncAlignCode;
+    procedure FuncExecSQLTables;
   end;
 
 var
@@ -98,11 +101,6 @@ begin
   Npp.FuncInsertText(cnstBSL_T);
 end;
 
-procedure f_REPLACEPROCPARAMS; cdecl;
-begin
-  Npp.FuncReplaceProcParams;
-end;
-
 procedure f_SP_HELP; cdecl;
 begin
   Npp.FuncSP_HELP;
@@ -118,10 +116,11 @@ begin
   Npp.FuncSP_HELPTEXT;
 end;
 
-procedure f_FuncAlignCode; cdecl;
+procedure _FuncExecSQLTables; cdecl;
 begin
-  Npp.FuncAlignCode;
+  Npp.FuncExecSQLTables;
 end;
+
 
 { TdiaPlugin }
 
@@ -130,7 +129,7 @@ var
   sk: TShortcutKey;
 begin
   inherited;
-
+{$IFNDEF NPPCONNECTIONS}
   PluginName := 'Easy.dia';
   AddFuncItem(PluginName, _FuncLog);
 
@@ -143,6 +142,20 @@ begin
   AddFuncItem('Выполнить запрос SQL', _FuncExecSQL, sk);
   AddFuncItem('Получить план запроса SQL', _FuncExecSQLPlan);
 
+  sk.IsCtrl := false; sk.IsAlt := true; sk.IsShift := false;
+  sk.Key := 32; // Space
+  AddFuncItem('Получить список p/t таблиц', _FuncExecSQLTables);
+{$ELSE}
+  PluginName := 'Npp.connections';
+  AddFuncItem(PluginName, _FuncLog);
+
+  sk.IsCtrl := true; sk.IsAlt := false; sk.IsShift := false;
+  sk.Key := 69; // 'E'
+  AddFuncItem('Execute SQL query', _FuncExecSQL, sk);
+  AddFuncItem('Get SQL execution plan', _FuncExecSQLPlan);
+{$ENDIF}
+
+{$IFNDEF NPPCONNECTIONS}
   AddFuncItem('-', nil );
   AddFuncItem('M_BUSINESSLOG_BEGIN'      ,f_M_BUSINESSLOG_BEGIN);
   AddFuncItem('M_BUSINESSLOG_BLOCK_BEGIN',f_M_BUSINESSLOG_BLOCK_BEGIN);
@@ -150,9 +163,8 @@ begin
   AddFuncItem('M_BUSINESSLOG_CHECKPOINT' ,f_M_BUSINESSLOG_CHECKPOINT);
   AddFuncItem('M_BUSINESSLOG_PARAM'      ,f_M_BUSINESSLOG_PARAM);
   AddFuncItem('M_LOG_TABLE_REQ'          ,f_M_LOG_TABLE_REQ);
+{$ENDIF}
   AddFuncItem('-', nil );
-//  AddFuncItem('Параметризация процедуры' ,f_REPLACEPROCPARAMS);
-//  AddFuncItem('Выровнять блок SQL кода' ,f_FuncAlignCode);
 
 
   sk.IsCtrl := true; sk.IsAlt := false; sk.IsShift := false;
@@ -179,14 +191,25 @@ procedure TdiaPlugin.DoNppnCharAdded(const ASCIIKey: Integer);
 var
   i: Integer;
 begin
+  if not Assigned(FLogForm) then Exit;
+
   for i := Low(cnstTracingChar) to High(cnstTracingChar) do
-  begin
     if cnstTracingChar[i] = ASCIIKey then
     begin
-      DoNppnTracingCharAdded(cnstTracingChar[i]);
-      break;
+      DoNppnTracingCharAdded(ASCIIKey);
+      Exit;
     end;
-  end;
+end;
+
+procedure TdiaPlugin.DoNppnCode(code: NativeInt);
+begin
+{
+      if Assigned(FLogForm) and (FLogForm.FindComponent('Memo1')<>nil) then
+      begin
+        TMemo(FLogForm.FindComponent('Memo1')).Lines.Add(code.ToString);
+      end;
+
+}
 end;
 
 procedure TdiaPlugin.DoNppnModified(sn: PSCNotification);
@@ -206,62 +229,57 @@ begin
 end;
 
 procedure TdiaPlugin.DoNppnTracingCharAdded(const Key: Integer);
-var
-  Size,StartPos,Position: NativeInt;
-  S,S1: AnsiString;
-  i: Integer;
-begin
-  if Assigned(FLogForm) then
+  function DoSqlIndexProc(const SourceString,IndexString: string; Len: Integer): boolean;
+  var
+    S1: AnsiString;
+    StartPos,i: Integer;
   begin
-    Size := Sci_Send(SCI_GETCURLINE, 0, 0);
-//    S := AnsiString(StringOfChar(#0, Size+1));
-
-    SetLength(S,Size);
-    try
-      Position := Sci_Send(SCI_GETCURLINE, Size, LPARAM(PAnsiChar(S)));
-      if not HasV5Apis then
-        SetLength(S,Size-1);
-      StartPos := Position - Length(cnstI);
-      if (StartPos > 0) and (Copy(S,StartPos,Length(cnstI))=cnstI) then
+    Result := False;
+    StartPos := Len - Length(IndexString);
+    if (StartPos > 0) and (Copy(SourceString,StartPos,Length(IndexString))=IndexString) then
+    begin
+      S1 := Copy(SourceString,1,StartPos-1);
+      i := Pos(cnstT1,LowerCase(S1));
+      if i>0 then
+        S1 := Copy(S1,i+Length(cnstT1),MaxInt)
+      else
       begin
-        S1 := Copy(S,1,StartPos-1);
-        i := Pos(cnstT1,LowerCase(S1));
+        i := Pos(cnstT2,LowerCase(S1));
         if i>0 then
-          S1 := Copy(S1,i+Length(cnstT1),MaxInt)
-        else
-        begin
-          i := Pos(cnstT2,LowerCase(S1));
-          if i>0 then
-            S1 := Copy(S,i+Length(cnstT2),MaxInt)
-        end;
-
-        S1 := WholeWord(S1,1);
-        if Length(S1) > 1 then FLogForm.DoSqlIndex(S1);
-        Exit;
+          S1 := Copy(SourceString,i+Length(cnstT2),MaxInt)
       end;
 
-      StartPos := Position - Length(cnstI1);
-      if (StartPos > 0) and (Copy(S,StartPos,Length(cnstI1))=cnstI1) then
+      S1 := WholeWord(S1,1);
+      if Length(S1) > 1 then
       begin
-        S1 := Copy(S,1,StartPos-1);
-        i := Pos(cnstT1,S1);
-        if i>0 then
-          S1 := Copy(S1,i+Length(cnstT1),MaxInt)
-        else
-        begin
-          i := Pos(cnstT2,S1);
-          if i>0 then
-            S1 := Copy(S,i+Length(cnstT2),MaxInt)
-        end;
-
-        S1 := WholeWord(S1,1);
-        if Length(S1) > 1 then FLogForm.DoSqlIndex(S1);
-        Exit;
+        FLogForm.DoSqlIndex(S1);
+        Result := True;
       end;
-    finally
-      SetLength(S,0);
     end;
   end;
+
+var
+  Size,Len: Integer;
+  S: AnsiString;
+
+begin
+  Size := Sci_Send(SCI_GETCURLINE, 0, 0);
+  SetLength(S,Size);
+  try
+    Len := Sci_Send(SCI_GETCURLINE, Size, LPARAM(PAnsiChar(S)));
+    if not HasV5Apis then
+      SetLength(S,Size-1);
+    if DoSqlIndexProc(S,cnstI,Len) then Exit;
+    if DoSqlIndexProc(S,cnstI1,Len) then Exit;
+  finally
+    SetLength(S,0);
+  end;
+end;
+
+procedure TdiaPlugin.SetCursor(const Mode: TCursorMode);
+begin
+  if Mode = crNormal then Sci_Send(SCI_SETCURSOR, WPARAM(SC_CURSORNORMAL),0);
+  if Mode = crWait then Sci_Send(SCI_SETCURSOR, SC_CURSORWAIT, 0);
 end;
 
 procedure TdiaPlugin.ShowAutocompletion(const TableName: string; Indx: TStringList);
@@ -270,23 +288,16 @@ var
   S: AnsiString;
 begin
   Sci_Send(SCI_AUTOCCANCEL, 0, 0);
-  Size := Sci_Send(SCI_GETCURLINE, 0, 0);
+  Indx.Delimiter := ' ';
+  S := Indx.DelimitedText;
+  Sci_Send(SCI_AUTOCSHOW, 0, LPARAM(PAnsiChar(S)));
+end;
 
-  SetLength(S,Size);
-  Sci_Send(SCI_GETCURLINE, Size, LPARAM(PAnsiChar(S)));
-
-  try
-    if not HasV5Apis then
-      SetLength(S,Size-1);
-    if Pos(TableName+' ',S) > 0 then
-    begin
-      Indx.Delimiter := ' ';
-      S := Indx.DelimitedText;
-      Sci_Send(SCI_AUTOCSHOW, 0, LPARAM(PAnsiChar(S)));
-    end;
-  finally
-    SetLength(S,0);
-  end;
+procedure TdiaPlugin.ShowAutocompletionTableList(const lengthEntered: NativeInt;  Tables: AnsiString);
+begin
+  Sci_Send(SCI_AUTOCCANCEL, 0, 0);
+  Sci_Send(SCI_AUTOCSETIGNORECASE, 1, 1);
+  Sci_Send(SCI_AUTOCSHOW, WPARAM(lengthEntered), LPARAM(PAnsiChar(Tables)));
 end;
 
 procedure TdiaPlugin.DoNppnToolbarModification;
@@ -303,10 +314,12 @@ begin
     tb8.ToolbarBmp := LoadImage(Hinstance, 'TREE', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
     Npp_Send(NPPM_ADDTOOLBARICON_FORDARKMODE, WPARAM(self.CmdIdFromDlgId(0)), LPARAM(@tb8));
 
+{$IFNDEF NPPCONNECTIONS}
     tb8.ToolbarIcon := LoadImage(Hinstance, 'ISERVER', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
     tb8.ToolbarIconDarkMode := LoadImage(Hinstance, 'ISERVERDARK', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
     tb8.ToolbarBmp := LoadImage(Hinstance, 'PROLIVKA', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
     Npp_Send(NPPM_ADDTOOLBARICON_FORDARKMODE, WPARAM(self.CmdIdFromDlgId(1)), LPARAM(@tb8));
+{$ENDIF}
 
     tb8.ToolbarIcon := LoadImage(Hinstance, 'ISQL', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
     tb8.ToolbarIconDarkMode := LoadImage(Hinstance, 'ISQLDARK', IMAGE_ICON, 0, 0, (LR_DEFAULTSIZE));
@@ -324,10 +337,11 @@ begin
     tb.ToolbarBmp := LoadImage(Hinstance, 'TREE', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
     Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(0)), LPARAM(@tb));
 
+{$IFNDEF NPPCONNECTIONS}
     tb.ToolbarIcon := 0;
     tb.ToolbarBmp := LoadImage(Hinstance, 'PROLIVKA', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
     Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(1)), LPARAM(@tb));
-
+{$ENDIF}
     tb.ToolbarIcon := 0;
     tb.ToolbarBmp := LoadImage(Hinstance, 'SQL', IMAGE_BITMAP, 0, 0, (LR_DEFAULTSIZE));
     Npp_Send(NPPM_ADDTOOLBARICON, WPARAM(self.CmdIdFromDlgId(2)), LPARAM(@tb));
@@ -338,49 +352,6 @@ begin
   end;
 
 
-end;
-
-procedure TdiaPlugin.FuncAlignCode;
-  function GetRightWord(S: string): string;
-  begin
-    Result := trim(S);
-    if Pos('=',Result) = 1 then
-      Result := '= ' + trim(Copy(Result,2,MaxInt));
-  end;
-var
-  S: AnsiString;
-  Strings: TAlignStrings;
-  i,j,iPos: Integer;
-begin
-  S := SelectedText;
-
-  Strings := TAlignStrings.Create;
-  try
-    Strings.Text := S;
-    for i := 0 to Strings.Count-1 do
-    begin
-      S := LowerCase(RemoveComments(Strings[i]));
-      iPos := 0;
-      for j := Low(cnstAlignStartWords) to High(cnstAlignStartWords) do
-      begin
-        iPos := Pos(cnstAlignStartWords[j],S);
-        if iPos > 0 then
-        begin
-          Strings.AlignFrom(i,cnstAlignStartWords[j]);
-          Break;
-        end;
-      end;
-      if iPos > 0 then Break;
-    end;
-
-    if (iPos > 0) then
-    begin
-      S := UTF8Encode(Strings.Text);
-      Sci_Send(SCI_REPLACESEL, 0, LPARAM(PAnsiChar(S)));
-    end;
-  finally
-    Strings.Free;
-  end;
 end;
 
 procedure TdiaPlugin.FuncExecHelpSQL(help: THelpType; S: string);
@@ -437,6 +408,39 @@ begin
 
 end;
 
+procedure TdiaPlugin.FuncExecSQLTables;
+var
+  Size: NativeInt;
+  S: AnsiString;
+  S1: string;
+  Words: TStringList;
+  i, iCurrentPos: Integer;
+begin
+  Size := Sci_Send(SCI_GETCURLINE, 0, 0);
+
+  SetLength(S,Size);
+  try
+    iCurrentPos := Sci_Send(SCI_GETCURLINE, Size, LPARAM(PAnsiChar(S)));
+    if not HasV5Apis then
+      SetLength(S,Size-1);
+    S1 := RemoveCarriageReturn(Copy(S,1,iCurrentPos));
+
+    if S1 = '' then Exit;
+    if S1.EndsWith(' ') then Exit;
+
+    S1 := WholeWord(S1,MaxInt);
+    for i in cnstTracingDataBaseChar do
+      if Pos(Char(i),S1)=1 then
+      begin
+        FLogForm.DoSqlGetTableList(S1);
+        Exit;
+      end;
+
+  finally
+    SetLength(S,0);
+  end;
+end;
+
 procedure TdiaPlugin.FuncExecThisSQL(S: string);
 var N: integer;
 begin
@@ -484,9 +488,13 @@ procedure TdiaPlugin.FuncInsertParam;
             iPos := Pos(' ',S);
             if iPos > 0 then
             begin
-              S0 := Trim(Copy(S,iPos+1,MaxInt));
-              iPos := Pos(',',S0);
+              S0 := WholeWord(Trim(Copy(S,iPos+1,MaxInt)),1);
+              {iPos := Pos(',',S0);
               if iPos > 0 then S0 := Copy(S0,1,iPos-1);
+              iPos := Pos('=',S0);
+              if iPos > 0 then S0 := Copy(S0,1,iPos-1);
+              iPos := Pos(' ',S0);
+              if iPos > 0 then S0 := Copy(S0,1,iPos-1);}
               if ItIsAWord(S0) then
                 Strings[i] := S
               else
@@ -522,6 +530,7 @@ const NoDuplicates = True;
 var
   S0,SText: AnsiString;
   Strings,Strings1: TStringList;
+  Range: TCharacterRange;
   i,j,iPos: Integer;
 begin
   S0 := SelectedText;
@@ -529,11 +538,11 @@ begin
   if Assigned(Strings) then
   begin
     try
-      SText := GetText;
-      //iPos := Pos(S0,SText);
-      //SText := Copy(SText,1,iPos-1);
+      Range.cpMin := 0;
+      Range.cpMax := CurrentPos;
+      SText := RemoveComments(GetTextRange(Range));
+//      SText := GetText;
 
-      SText := RemoveComments(SText);
       Strings1 := RemoveStringsAboveStartProc(SText);
       try
         Strings1.Text := RemoveComments(Strings1.Text);
@@ -547,9 +556,11 @@ begin
             iPos := Pos(Strings[i]+' ',Strings1[j]);
             if iPos = 1 then
             begin
-              SText := Trim(Copy(Strings1[j],Length(Strings[i])+1,MaxInt));
-              iPos := Pos(',',SText);
-              if iPos>0 then SText := Copy(SText,1,iPos-1);
+              SText := WholeWord(Trim(Copy(Strings1[j],Length(Strings[i])+1,MaxInt)),1);
+//              iPos := Pos(',',SText);
+//              if iPos>0 then SText := Copy(SText,1,iPos-1);
+//              iPos := Pos('=',SText);
+//              if iPos>0 then SText := Copy(SText,1,iPos-1);
               S0 := format(cnstBSL_P,[Strings[i],SText,GetType(SText)]);
               break;
             end;
@@ -587,103 +598,6 @@ procedure TdiaPlugin.FuncPrForm;
 begin
   if not Assigned(FLogForm) then FLogForm := TLogForm.Create(self, 0);
   (FLogForm as TLogForm).DoPrForm;
-end;
-
-procedure TdiaPlugin.FuncReplaceProcParams;
-var
-  S0,S: AnsiString;
-  Line: string;
-  Strings,Strings1,Strings2: TStringList;
-  Range: TCharacterRange;
-  i,j,iPos,iPos1,cPos,cPos1: Integer;
-begin
-  S0 := SelectedText;
-  Strings := TStringList.Create;
-  Strings1:= TStringList.Create;
-  Strings2:= TStringList.Create;
-  try
-    Strings.Text := S0;
-    for i := 0 to Strings.Count-1 do
-    begin
-      iPos := Pos('%',Strings[i]);
-      iPos1:= Pos('!',Strings[i]); //Это параметры в DFM форме
-      cPos := Pos('''%',Strings[i]);
-      cPos1:= Pos('!''',Strings[i]); //Это параметры в кавычках
-      if cPos = 0 then
-        cPos := Pos('"%',Strings[i]);
-      if cPos1 = 0 then
-        cPos1:= Pos('!"',Strings[i]); //Это параметры в кавычках
-
-      if (iPos > 0) and (iPos1 > iPos) then
-      begin
-        S0 := RemoveComments(Copy(Strings[i],1,iPos-1));
-        S0 := StringReplace(S0,' ','',[rfReplaceAll]);
-        S0 := StringReplace(S0,',','',[rfReplaceAll]);
-        S0 := StringReplace(S0,'=','',[rfReplaceAll]);
-        S0 := StringReplace(S0,'''','',[rfReplaceAll]);
-        S0 := StringReplace(S0,'"','',[rfReplaceAll]);
-        S0 := trim(S0);
-        if Pos('@',S0) = 1 then
-        begin
-          if Strings1.Count > 0 then
-            Strings1.Add('       ' + S0)
-          else
-            Strings1.Add('select ' + S0);
-
-          if cPos > 0  then
-            S := RemoveComments(Copy(Strings[i],cPos,MaxInt))
-          else
-            S := RemoveComments(Copy(Strings[i],iPos,MaxInt));
-
-          S := StringReplace(S,' ','',[rfReplaceAll]);
-          S := StringReplace(S,',','',[rfReplaceAll]);
-          S := trim(S);
-          Strings2.Add(S);
-
-          if (cPos > 0) and (cPos1 > 0) then
-            S := Copy(Strings[i],1,cPos-1) + S0 + Copy(Strings[i],cPos1+2,MaxInt)
-          else
-            S := Copy(Strings[i],1,iPos-1) + S0 + Copy(Strings[i],iPos1+1,MaxInt);
-          Strings[i] := S;
-        end;
-      end;
-
-    end;
-
-    j := 0;
-    for i := 0 to Strings1.Count - 1 do
-      j := Max(j,length(Strings1[i]));
-
-    for i := 0 to Strings1.Count - 1 do
-    begin
-      Line := Strings1[i];
-      Strings1[i] := Line.PadRight(j+1) + '= ' + Strings2[i];
-    end;
-
-    j := 0;
-    for i := 0 to Strings1.Count - 1 do
-      j := Max(j,length(Strings1[i]));
-
-    for i := 0 to Strings1.Count - 2 do
-    begin
-      Line := Strings1[i];
-      Strings1[i] := Line.PadRight(j+1) + ',';
-    end;
-
-    if Strings1.Count > 0 then
-    begin
-      Strings1.Add('');
-      Strings1.AddStrings(Strings);
-      //FuncInsertText(Strings1.Text);
-      S := UTF8Encode(Strings1.Text);
-      Sci_Send(SCI_REPLACESEL, 0, LPARAM(PAnsiChar(S)));
-    end;
-
-  finally
-    Strings.Free;
-    Strings1.Free;
-    Strings2.Free;
-  end;
 end;
 
 procedure TdiaPlugin.FuncSP_HELP;
@@ -737,26 +651,26 @@ begin
     FuncExecHelpSQL(spHelptext,S);
 end;
 
-{function TdiaPlugin.GetTextRange(const Range: TCharacterRange): nppString;
+function TdiaPlugin.GetTextRange(const Range: TCharacterRange): nppString;
 var pt: PTextRange; //Возвращает текст внутри переданного диапазона
-    Size: LRESULT;
+    Size,StartSize: NativeInt;
     S: AnsiString;
 begin
-  Size := (Range.cpMax - Range.cpMin)+1;
+  StartSize := (Range.cpMax - Range.cpMin)+1;
   GetMem(pt,SizeOf(TTextRange));
-  GetMem(pt^.lpstrText,Size);
+  GetMem(pt^.lpstrText,StartSize);
   try
     pt^.chrg := Range;
-    Sci_Send(SCI_GETTEXTRANGE,0,LPARAM(pt));
-    if not HasV5Apis then
-      SetLength(S,Size-1);
-    StrLCopy(PAnsiChar(S),pt^.lpstrText,Size-1);
+    Size :=Sci_Send(SCI_GETTEXTRANGEFULL,0,LPARAM(pt));
+    if HasV5Apis then Inc(Size);
+    SetLength(S,Size);
+    StrLCopy(PAnsiChar(S),pt^.lpstrText,Size);
   finally
-    FreeMem(pt^.lpstrText,Size);
+    FreeMem(pt^.lpstrText,StartSize);
     FreeMem(pt,SizeOf(TTextRange));
     Result := S;
   end;
-end;}
+end;
 
 procedure TdiaPlugin.DoNppnUpdateAutoSelection(P: PAnsiChar);
 var
@@ -787,7 +701,7 @@ begin
       try
         S := Copy(S,1,iLen-1);
         Sci_Send(SCI_AUTOCCANCEL,0,0);
-        iLen := Sci_Send(SCI_GETCURRENTPOS,0,0);
+        iLen := CurrentPos;
         Sci_Send(SCI_INSERTTEXT, WPARAM(-1), LPARAM(PAnsiChar(S)));
         Sci_Send(SCI_GOTOPOS,iLen + Length(S)+1,0);
       finally

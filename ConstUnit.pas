@@ -16,6 +16,7 @@ type
   TBeginAlignArray = array[0..9] of string;
 
   TShowMode = (shSql,shPr,shCI);
+  TCursorMode = (crNormal,crWait);
 
   TBdType = (bdMSSQL, bdSybase, bdPostgreSQL, bdODBC);
   TBdTypeStringArray = array [TBdType] of string;
@@ -24,6 +25,8 @@ type
   TItemType = (itServerMS,itServerSYB,itServerPostgreSQL,itODBC,itBase,itBaseRTI,itLogin);
 
   TTracingChar = array[0..1] of integer;
+  TTracingDataBaseChar = array[0..3] of integer;
+  TTableKewordsArray = array[0..5] of string;
   TDSTypeArray = array[0..54] of string;
 
   THelpType = (spHelp, spHelpindex, spHelpText);
@@ -32,16 +35,7 @@ type
 const
 
   WM_USER_MESSAGE_FROM_THREAD =  WM_USER + 1;
-
-  cnstSqlWaitResults = 'Ждемс........';
-  cnstSqlNoResults = 'Команда выполнена';
-  cnstSqlNoPossible = 'Выполнение команды невозможно';
-  cnstSqlExec = 'Результаты: %s\%s (%s)';
-
   cnstModalResultArray: TModalResultArray = (mrCancel,mrOk);
-
-  cnstFileCopyError = 'Не удалось скопировать файл в %s';
-  cnstFileCopyErrorCaption = 'Ошибка копирования файла';
 
   cnstBatch = 'cmd.exe /D /C "set keep_tfiles=true&&cls&&..\serv %s"';
   cnstConvert = 'curl --location --request POST "http://postgrefagl:8089/v1/batch" --header "Content-Type: application/octet-stream" --data-binary @"%s"';
@@ -50,9 +44,8 @@ const
   cnstDllKey = 'Software\dia2notepad';
   cnstPrFormKey = 'PrForm';
   cnstPrHistKey = 'PrPathHistory';
-  cnstPrClearMenuItemCaption = 'Очистить историю папок проливки';
 
-  constDBList = 'select name from master..sysdatabases order by name';
+  constDBList = 'SELECT name FROM master..sysdatabases ORDER BY name';
   constPostgreDBList = 'SELECT datname FROM pg_database;';
 
   cnstBSL_B = 'M_BUSINESSLOG_BEGIN';
@@ -107,12 +100,12 @@ const
 
   cnstShowPlanXML_ON = 'SET SHOWPLAN_XML ON';
   cnstShowPlanXML_OFF = 'SET SHOWPLAN_XML OFF';
-  cnstShowPlan_ON = 'set showplan on';
-  cnstShowPlan_OFF = 'set showplan off';
+  cnstShowPlan_ON = 'SET SHOWPLAN ON';
+  cnstShowPlan_OFF = 'SET SHOWPLAN OFF';
 
-  cnstShowSpHelp = 'sp_help %s';
-  cnstShowSpHelpIndex = 'sp_helpindex %s';
-  cnstShowSpHelpText = 'sp_helptext %s';
+  cnstShowSpHelp = 'SP_HELP %s';
+  cnstShowSpHelpIndex = 'SP_HELPINDEX %s';
+  cnstShowSpHelpText = 'SP_HELPTEXT %s';
 
 
   cnstShowPlan_PostgreSQL = 'EXPLAIN ';
@@ -126,10 +119,23 @@ const
                                                         'oid FROM pg_proc'+sLineBreak+
                                                         'WHERE'+sLineBreak+
                                                         'proname = ''%s''));';
+
+  cnstHelpArray: THelpArray = ((cnstShowSpHelp,cnstShowSpHelpIndex,cnstShowSpHelpText),
+                               (cnstShowSpHelp,cnstShowSpHelpIndex,cnstShowSpHelpText),
+                               (cnstShowSpHelp_PostgreSQL,cnstShowSpHelpIndex_PostgreSQL,cnstShowSpHelpText_PostgreSQL),
+                               ('%s','%s','%s')
+                              );
+
+  cnstGetTables_MsSql = 'SELECT name FROM sys.tables WHERE name LIKE ''[t,p]%'' ORDER BY name';
+  cnstGetTables_Sybase = 'SELECT name FROM sysobjects WHERE type = ''U'' AND name LIKE ''[t,p]%'' ORDER BY name';
+  cnstGetTables_PostgreSQL = 'SELECT tablename FROM pg_catalog.pg_tables WHERE tablename SIMILAR TO ''[p|t]%'' ORDER BY tablename;';
+
+  cnstGetTablesArray: TBdTypeStringArray = (cnstGetTables_MsSql,cnstGetTables_Sybase,cnstGetTables_PostgreSQL,'');
+
   cnstAseOleDB = '[ASEOLEDB]';
   cnstShowPlan = 'PLAN:';
   cnstShowIndx = 'INDX:';
-  cnstOpenPlanMessage = 'Открыть план запроса?';
+
   cnstSqlplanExt = '.sqlplan';
   cnstGo = 'go';
 
@@ -138,12 +144,11 @@ const
 
   cnstT1 = 'join ';
   cnstT2 = 'from ';
-
-  cnstHelpArray: THelpArray = ((cnstShowSpHelp,cnstShowSpHelpIndex,cnstShowSpHelpText),
-                               (cnstShowSpHelp,cnstShowSpHelpIndex,cnstShowSpHelpText),
-                               (cnstShowSpHelp_PostgreSQL,cnstShowSpHelpIndex_PostgreSQL,cnstShowSpHelpText_PostgreSQL),
-                               ('%s','%s','%s')
-                              );
+  cnstT3 = 'insert into ';
+  cnstT4 = 'insert ';
+  cnstT5 = 'update ';
+  cnstT6 = 'delete ';
+  cnstTableKewordsArray: TTableKewordsArray = (cnstT1,cnstT2,cnstT3,cnstT4,cnstT5,cnstT6);
 
   MS =
     'M_NOLOCK (NOLOCK)'#13#10+
@@ -528,6 +533,7 @@ const
   c_Tab   = #9;
 
   cnstTracingChar: TTracingChar = (40,40);
+  cnstTracingDataBaseChar: TTracingDataBaseChar = (80,84,112,116);
 
   constConnectionMSSQL =  'Provider=SQLOLEDB.1;Password=%s;Persist Security Info=True;User ID=%s;%sData Source=%s';
   constConnectionSybase = 'Provider=ASEOLEDB.1;Password=%s;Persist Security Info=True;User ID=%s;Data Source=%s:%s;%sExtended Properties="LANGUAGE=us_english";Connect Timeout=3';
@@ -538,11 +544,20 @@ const
                                                     constConnectionPostgre,
                                                     constConnectionODBC);
 
-  constLoginBDCaption  = 'Подключение к ';
   constLoginBDCaptionArray: TBdTypeStringArray = ('MSSQL','Sybase','PostgreSQL','ODBC');
-  constDSBDCaptionArray: TBdTypeStringArray = ('Сервер','Сервер','Сервер','Источник');
   constLoginBDArray: TBdTypeStringArray = ('sa','sa','postgres','admin');
 
+{$IFNDEF NPPCONNECTIONS}
+  cnstSqlWaitResults = 'Ждемс........';
+  cnstSqlNoResults = 'Команда выполнена';
+  cnstSqlNoPossible = 'Выполнение команды невозможно';
+  cnstSqlExec = 'Результаты: %s\%s (%s)';
+  cnstFileCopyError = 'Не удалось скопировать файл в %s';
+  cnstFileCopyErrorCaption = 'Ошибка копирования файла';
+  cnstPrClearMenuItemCaption = 'Очистить историю папок проливки';
+  cnstOpenPlanMessage = 'Открыть план запроса?';
+  constLoginBDCaption  = 'Подключение к ';
+  constDSBDCaptionArray: TBdTypeStringArray = ('Сервер','Сервер','Сервер','Источник');
 
   cnstErroCaption = 'Ошибка';
   cnstRecordConfirmation = 'Начать протоколирование на базе %s?';
@@ -557,9 +572,11 @@ const
   cnstNoBaseSelected = 'Чтобы выполнить SQL запрос, необходимо выбрать сервер и базу!';
   cnstNoSQLSelected = 'На этот сервер проливка не поддерживается!';
   cnstNoSQLbaseSelected = 'Чтобы выполнить проливку, необходимо выбрать сервер и базу!';
+{$ENDIF}
 
 procedure StringsToAnsi(Strings: TStrings);
 function RemoveGarbage(const S: string): string;
+function RemoveCarriageReturn(const S: string): string;
 function TempPath: string;
 procedure ReplaceConstants(SqlText: TStringList);
 function ItIsAWord(S: AnsiString): boolean;
@@ -613,6 +630,11 @@ begin
     j := Result.IndexOf(S0);
     if j >= 0 then Result := Copy(Result,1,j);
   end;
+end;
+
+function RemoveCarriageReturn(const S: string): string;
+begin
+  Result := StringReplace(S,#13#10,'',[rfReplaceAll]);
 end;
 
 procedure ReplaceConstants(SqlText: TStringList);
@@ -744,7 +766,10 @@ begin
   begin
     try
       if WordIndex <= Strings.Count then
-        Result := Strings[WordIndex-1];
+        Result := Strings[WordIndex-1]
+      else
+        if (Strings.Count>0) then
+          Result := Strings[Strings.Count-1]
     finally
       FreeAndNil(Strings);
     end;

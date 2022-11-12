@@ -5,14 +5,17 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ComCtrls, ConstUnit, Data.Db,
-  Vcl.ExtCtrls;
+  Vcl.Dialogs, Vcl.ExtCtrls;
 
 type
 
   TTreeNodeEx = class(TTreeNode)
   private
     FDataSource: string;
+    FTableList: TStringList;
   public
+    constructor Create(AOwner: TTreeNodes); override;
+    destructor Destroy; override;
     property DataSource: string read FDataSource write FDataSource;
   end;
 
@@ -140,8 +143,10 @@ type
   private
     function GetItemType: TItemType;
     procedure SetItemType(const Value: TItemType);
+    function GetTableList: TStringList;
   public
     property ItemType: TItemType read GetItemType write SetItemType;
+    property TableList: TStringList read GetTableList;
   end;
 
 
@@ -152,6 +157,11 @@ implementation
 function TTreeNodeHelper.GetItemType: TItemType;
 begin
   Result := TItemType(Self.Data);
+end;
+
+function TTreeNodeHelper.GetTableList: TStringList;
+begin
+  Result := TTreeNodeEx(Self).FTableList;
 end;
 
 procedure TTreeNodeHelper.SetItemType(const Value: TItemType);
@@ -321,6 +331,20 @@ begin
         Result := TreeView.Items[i];
         break;
       end;
+end;
+
+{ TTreeNodeEx }
+
+constructor TTreeNodeEx.Create(AOwner: TTreeNodes);
+begin
+  inherited;
+  FTableList := TStringList.Create;
+end;
+
+destructor TTreeNodeEx.Destroy;
+begin
+  FTableList.Free;
+  inherited;
 end;
 
 end.

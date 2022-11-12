@@ -5,7 +5,7 @@ interface
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.StrUtils,
   System.Win.ComObj, Data.DB, Data.Win.ADODB, WinApi.ADOInt, Vcl.Dialogs,
-  ConstUnit, Variants, ThreadUnit, StringGridsUnit, StringGridExUnit,
+  Vcl.ComCtrls, ConstUnit, Variants, ThreadUnit, StringGridsUnit, StringGridExUnit,
   ExtScrollingWinControlUnit;
 
 type
@@ -77,6 +77,19 @@ type
     constructor Create;
     destructor Destroy; override;
     property Indexes: TStringList read FIndexes;
+  end;
+
+  TTableListObject = class(TSqlThreadObject)
+  private
+    FTableList: TStringList;
+    FTreeNode: TTreeNode;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    property TableList: TStringList read FTableList;
+    property Node: TTreeNode read FTreeNode write FTreeNode;
   end;
 
 function ConvertSqlText(const SybStyle: boolean; SqlText: TStringList): TStringList;
@@ -736,6 +749,71 @@ begin
       if FThread.Terminated then Exit;
     finally
       Strings.Free;
+    end;
+  finally
+    Conn.Close;
+    Conn := nil;
+  end;
+end;
+
+{ TTableListObject }
+
+constructor TTableListObject.Create;
+begin
+  inherited;
+  FTableList := nil;
+end;
+
+destructor TTableListObject.Destroy;
+begin
+  if Assigned(FTableList) then FTableList.Free;
+  inherited;
+end;
+
+procedure TTableListObject.Execute;
+var
+  cmd  : _Command;
+  Conn : _Connection;
+  rs   : _RecordSet;
+  RA   : OleVariant;
+  V    : OleVariant;
+begin
+  Conn := CreateComObject(CLASS_Connection) as _Connection;
+  try
+    Conn.ConnectionString := FConnectionString;
+    Conn.CommandTimeout := 600;
+    Conn.Open(Conn.ConnectionString,'','',Integer(adConnectUnspecified));
+    cmd := CreateComObject(CLASS_Command) as _Command;
+    try
+      cmd.CommandType := adCmdUnknown;
+      cmd.Set_ActiveConnection(Conn);
+      cmd.CommandText := cnstGetTablesArray[BdType];
+      cmd.CommandTimeout := 600;
+
+      try
+        rs := cmd.Execute(RA,EmptyParam,Integer(adCmdUnknown));
+      except
+        on E: Exception do
+        begin
+          ErrMessage := E.Message;
+          Exit;
+        end;
+      end;
+
+      FTableList := TStringList.Create;
+      if not FThread.Terminated then
+        if (rs.State = adStateOpen) and (rs.Fields.Count>0) then
+          if not (rs.EOF and rs.BOF) then
+            while not rs.EOF do
+            begin
+              if FThread.Terminated then Exit;
+              V := rs.Fields[0].Value;
+              FTableList.Add(Trim(VarToStr(V)));
+              rs.MoveNext;
+            end;
+    finally
+      cmd.Set_ActiveConnection(nil);
+      cmd  := nil;
     end;
   finally
     Conn.Close;
