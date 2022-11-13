@@ -14,9 +14,12 @@ type
   private
     { Private declarations }
     FLogForm: TLogForm;
-    procedure DoNppnTracingCharAdded(const Key: Integer);
+    procedure ProcessSqlIndex(const S: string);
+    procedure ProcessSqlFields(const S: string);
     function CurrentPos: LRESULT;
-    function GetTextRange(const Range: TCharacterRange): nppString;
+    function CurrentLine: LRESULT;
+    function GetTextRange(Range: TCharacterRange): nppString;
+    function GetLine(const Line: Integer): string;
   public
     constructor Create;
 
@@ -30,8 +33,8 @@ type
 
     procedure SetCursor(const Mode: TCursorMode);
 
-    procedure ShowAutocompletionTableList(const lengthEntered: NativeInt; Tables: AnsiString);
-    procedure ShowAutocompletion(const TableName: string; Indx: TStringList);
+    procedure ShowAutocompletionList(const lengthEntered: NativeInt; Tables: AnsiString);
+    procedure ShowAutocompletionIndex(const TableName: string; Indx: TStringList);
     procedure FuncLog;
     procedure FuncPrForm;
     procedure FuncExecThisSQL(S: string);
@@ -176,6 +179,14 @@ begin
   Sci_Send(SCI_SETMODEVENTMASK,SC_MOD_INSERTTEXT or SC_MOD_DELETETEXT,0);
 end;
 
+function TdiaPlugin.CurrentLine: LRESULT;
+var
+  iPos: Integer;
+begin
+  iPos := CurrentPos;
+  Result := Sci_Send(SCI_LINEFROMPOSITION, WPARAM(iPos), 0);
+end;
+
 function TdiaPlugin.CurrentPos: LRESULT;
 begin
   Result := Sci_Send(SCI_GETCURRENTPOS, 0, 0);
@@ -189,16 +200,28 @@ end;
 
 procedure TdiaPlugin.DoNppnCharAdded(const ASCIIKey: Integer);
 var
-  i: Integer;
+  Size,Len: Integer;
+  S: AnsiString;
 begin
   if not Assigned(FLogForm) then Exit;
+  if ASCIIKey in [cnstTracingChar,cnstTracingFieldChar] then
+  begin
+    Size := Sci_Send(SCI_GETCURLINE, 0, 0);
+    SetLength(S,Size);
+    try
+      Len := Sci_Send(SCI_GETCURLINE, Size, LPARAM(PAnsiChar(S)));
+      if not HasV5Apis then
+        SetLength(S,Size-1);
 
-  for i := Low(cnstTracingChar) to High(cnstTracingChar) do
-    if cnstTracingChar[i] = ASCIIKey then
-    begin
-      DoNppnTracingCharAdded(ASCIIKey);
-      Exit;
+      if ASCIIKey = cnstTracingChar then
+        ProcessSqlIndex(Copy(S,1,Len-1))
+      else
+      if ASCIIKey = cnstTracingFieldChar then
+        ProcessSqlFields(Copy(S,1,Len-1));
+    finally
+      SetLength(S,0);
     end;
+  end;
 end;
 
 procedure TdiaPlugin.DoNppnCode(code: NativeInt);
@@ -228,52 +251,79 @@ begin
   inherited;
 end;
 
-procedure TdiaPlugin.DoNppnTracingCharAdded(const Key: Integer);
-  function DoSqlIndexProc(const SourceString,IndexString: string; Len: Integer): boolean;
+procedure TdiaPlugin.ProcessSqlFields(const S: string);
+const
+  cnstLastOperator = True;
+  cnstFirstOperator = False;
+var
+  i, iPos, LineCount, Line: Integer;
+  S0, alias, Txt: string;
+begin
+  iPos := S.LastIndexOf(' ');
+  if iPos>=0 then
+  begin
+    alias := S.Substring(iPos+1);
+    if alias.Length>0 then
+    begin
+      LineCount := GetLineCount;
+      Line := CurrentLine;
+
+      for i := Line downto 0 do
+      begin
+        Txt := GetLine(i).Replace(alias+'.',' ');
+
+        S0 := WordBefore(alias,Txt);
+        if S0<>'' then Break;
+        if FindOperator(Txt) then Break;
+      end;
+
+      if (S0.Length=0) and (Line<=LineCount-2) then
+        for i := Line+1 to LineCount-1 do
+        begin
+          Txt := GetLine(i).Replace(alias+'.',' ');
+
+          S0 := WordBefore(alias,Txt);
+          if S0<>'' then Break;
+          if FindOperator(Txt) then Break;
+        end;
+
+      if S0.Length>0 then FLogForm.DoGetFields(S0);
+    end;
+  end;
+end;
+
+procedure TdiaPlugin.ProcessSqlIndex(const S: string);
+  function DoSqlIndexProc(const SourceString,IndexString: string): boolean;
   var
-    S1: AnsiString;
+    S: string;
     StartPos,i: Integer;
   begin
     Result := False;
-    StartPos := Len - Length(IndexString);
-    if (StartPos > 0) and (Copy(SourceString,StartPos,Length(IndexString))=IndexString) then
+    StartPos := SourceString.IndexOf(IndexString);
+    if StartPos > 0 then
     begin
-      S1 := Copy(SourceString,1,StartPos-1);
-      i := Pos(cnstT1,LowerCase(S1));
-      if i>0 then
-        S1 := Copy(S1,i+Length(cnstT1),MaxInt)
+      S := SourceString.Substring(0,StartPos);
+      i := S.ToLower.IndexOf(cnstT1);
+      if i>=0 then
+        S := S.Substring(i+Length(cnstT1))
       else
       begin
-        i := Pos(cnstT2,LowerCase(S1));
-        if i>0 then
-          S1 := Copy(SourceString,i+Length(cnstT2),MaxInt)
+        i := S.ToLower.IndexOf(cnstT2);
+        if i>=0 then
+          S := S.Substring(i+Length(cnstT1))
       end;
 
-      S1 := WholeWord(S1,1);
-      if Length(S1) > 1 then
+      S := WholeWord(S,1);
+      if Length(S) > 1 then
       begin
-        FLogForm.DoSqlIndex(S1);
+        FLogForm.DoSqlIndex(S);
         Result := True;
       end;
     end;
   end;
-
-var
-  Size,Len: Integer;
-  S: AnsiString;
-
 begin
-  Size := Sci_Send(SCI_GETCURLINE, 0, 0);
-  SetLength(S,Size);
-  try
-    Len := Sci_Send(SCI_GETCURLINE, Size, LPARAM(PAnsiChar(S)));
-    if not HasV5Apis then
-      SetLength(S,Size-1);
-    if DoSqlIndexProc(S,cnstI,Len) then Exit;
-    if DoSqlIndexProc(S,cnstI1,Len) then Exit;
-  finally
-    SetLength(S,0);
-  end;
+  if DoSqlIndexProc(S,cnstI) then Exit;
+  if DoSqlIndexProc(S,cnstI1) then Exit;
 end;
 
 procedure TdiaPlugin.SetCursor(const Mode: TCursorMode);
@@ -282,7 +332,7 @@ begin
   if Mode = crWait then Sci_Send(SCI_SETCURSOR, SC_CURSORWAIT, 0);
 end;
 
-procedure TdiaPlugin.ShowAutocompletion(const TableName: string; Indx: TStringList);
+procedure TdiaPlugin.ShowAutocompletionIndex(const TableName: string; Indx: TStringList);
 var
   Size: Integer;
   S: AnsiString;
@@ -293,7 +343,7 @@ begin
   Sci_Send(SCI_AUTOCSHOW, 0, LPARAM(PAnsiChar(S)));
 end;
 
-procedure TdiaPlugin.ShowAutocompletionTableList(const lengthEntered: NativeInt;  Tables: AnsiString);
+procedure TdiaPlugin.ShowAutocompletionList(const lengthEntered: NativeInt;  Tables: AnsiString);
 begin
   Sci_Send(SCI_AUTOCCANCEL, 0, 0);
   Sci_Send(SCI_AUTOCSETIGNORECASE, 1, 1);
@@ -430,7 +480,7 @@ begin
 
     S1 := WholeWord(S1,MaxInt);
     for i in cnstTracingDataBaseChar do
-      if Pos(Char(i),S1)=1 then
+      if S1.StartsWith(Char(i)) then
       begin
         FLogForm.DoSqlGetTableList(S1);
         Exit;
@@ -651,7 +701,23 @@ begin
     FuncExecHelpSQL(spHelptext,S);
 end;
 
-function TdiaPlugin.GetTextRange(const Range: TCharacterRange): nppString;
+function TdiaPlugin.GetLine(const Line: Integer): string;
+var
+  Size: Integer;
+  S: AnsiString;
+begin
+  Size := Sci_Send(SCI_LINELENGTH,WPARAM(Line),0);
+  if HasV5Apis then Inc(Size);
+  SetLength(S,Size);
+  try
+    Size :=Sci_Send(SCI_GETLINE,WPARAM(Line),LPARAM(PAnsiChar(S)));
+    Result := S;
+  finally
+    SetLength(S,0);
+  end;
+end;
+
+function TdiaPlugin.GetTextRange(Range: TCharacterRange): nppString;
 var pt: PTextRange; //¬озвращает текст внутри переданного диапазона
     Size,StartSize: NativeInt;
     S: AnsiString;

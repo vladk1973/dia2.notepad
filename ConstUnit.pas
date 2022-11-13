@@ -3,7 +3,8 @@ unit ConstUnit;
 interface
 
 uses Winapi.Windows, Winapi.Messages, System.StrUtils,
-     Vcl.Controls, System.Classes, System.SysUtils;
+     Vcl.Controls, System.Classes, System.SysUtils,
+     System.Math;
 
 type
   TCommand = string;
@@ -14,6 +15,7 @@ type
   TGarbageArray   = array[0..9] of string;
   TBeginProcArray = array[0..4] of string;
   TBeginAlignArray = array[0..9] of string;
+  TOperatorsArray = array[0..3] of string;
 
   TShowMode = (shSql,shPr,shCI);
   TCursorMode = (crNormal,crWait);
@@ -24,9 +26,7 @@ type
   //В TItemType - порядок типов должен совпадать с TBdType
   TItemType = (itServerMS,itServerSYB,itServerPostgreSQL,itODBC,itBase,itBaseRTI,itLogin);
 
-  TTracingChar = array[0..1] of integer;
   TTracingDataBaseChar = array[0..3] of integer;
-  TTableKewordsArray = array[0..5] of string;
   TDSTypeArray = array[0..54] of string;
 
   THelpType = (spHelp, spHelpindex, spHelpText);
@@ -132,6 +132,8 @@ const
 
   cnstGetTablesArray: TBdTypeStringArray = (cnstGetTables_MsSql,cnstGetTables_Sybase,cnstGetTables_PostgreSQL,'');
 
+  cnstGetFieldsSQL = 'select * from %s where 1=0';
+
   cnstAseOleDB = '[ASEOLEDB]';
   cnstShowPlan = 'PLAN:';
   cnstShowIndx = 'INDX:';
@@ -144,11 +146,12 @@ const
 
   cnstT1 = 'join ';
   cnstT2 = 'from ';
-  cnstT3 = 'insert into ';
-  cnstT4 = 'insert ';
-  cnstT5 = 'update ';
-  cnstT6 = 'delete ';
-  cnstTableKewordsArray: TTableKewordsArray = (cnstT1,cnstT2,cnstT3,cnstT4,cnstT5,cnstT6);
+
+  cnstOperator1 = 'select ';
+  cnstOperator2 = 'insert ';
+  cnstOperator3 = 'update ';
+  cnstOperator4 = 'delete ';
+  cnstOperators: TOperatorsArray = (cnstOperator1,cnstOperator2,cnstOperator3,cnstOperator4);
 
   MS =
     'M_NOLOCK (NOLOCK)'#13#10+
@@ -532,8 +535,9 @@ const
   LineEnd = #13#10;
   c_Tab   = #9;
 
-  cnstTracingChar: TTracingChar = (40,40);
+  cnstTracingChar = 40;
   cnstTracingDataBaseChar: TTracingDataBaseChar = (80,84,112,116);
+  cnstTracingFieldChar = 46;
 
   constConnectionMSSQL =  'Provider=SQLOLEDB.1;Password=%s;Persist Security Info=True;User ID=%s;%sData Source=%s';
   constConnectionSybase = 'Provider=ASEOLEDB.1;Password=%s;Persist Security Info=True;User ID=%s;Data Source=%s:%s;%sExtended Properties="LANGUAGE=us_english";Connect Timeout=3';
@@ -582,7 +586,9 @@ procedure ReplaceConstants(SqlText: TStringList);
 function ItIsAWord(S: AnsiString): boolean;
 function WholeWords(S: AnsiString; const NoDuplacates: boolean = False): TStringList;
 function WholeWord(const S: AnsiString; const WordIndex: Integer): AnsiString;
+function WordBefore(const SearchedS,S: AnsiString): AnsiString;
 function RemoveComments(S: string): string;
+function FindOperator(const S: string): boolean;
 //function GetDSType(S: string): String;
 function GetType(S: string): String;
 
@@ -617,6 +623,26 @@ begin
     NewStr := DosToWin(Strings[i]);
     Strings[i] := NewStr;
   end;
+end;
+
+function FindOperator(const S: string): boolean;
+var
+  S0: string;
+  iPos: integer;
+begin
+  iPos := -1;
+  for S0 in cnstOperators do
+  begin
+    iPos := Max(iPos,S.IndexOf(' ' + S0));
+    iPos := Max(iPos,S.IndexOf(sLineBreak + S0));
+    iPos := Max(iPos,S.IndexOf('(' + S0));
+    if (iPos<0) and ((S.StartsWith(S0)) or (S.Trim = S0.Trim)) then
+    begin
+      iPos := 0;
+      Break;
+    end;
+  end;
+  Result := iPos>=0;
 end;
 
 function RemoveGarbage(const S: string): string;
@@ -770,6 +796,30 @@ begin
       else
         if (Strings.Count>0) then
           Result := Strings[Strings.Count-1]
+    finally
+      FreeAndNil(Strings);
+    end;
+  end;
+end;
+
+function WordBefore(const SearchedS,S: AnsiString): AnsiString;
+var
+  Strings: TStringList;
+  i: Integer;
+begin
+  Result := '';
+  Strings := WholeWords(S);
+  if Assigned(Strings) then
+  begin
+    try
+      for i := Strings.Count-1 downto 0 do
+      begin
+        if Strings[i] = SearchedS then
+        begin
+          if i>0 then Result := Strings[i-1];
+          break;
+        end;
+      end;
     finally
       FreeAndNil(Strings);
     end;

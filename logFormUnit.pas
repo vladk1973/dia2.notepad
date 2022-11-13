@@ -117,6 +117,7 @@ type
     ODBC1: TMenuItem;
     AfterTableListAction: TAction;
     TableListAction: TAction;
+    AfterFieldListAction: TAction;
     procedure FormCreate(Sender: TObject);
     procedure SQLActionExecute(Sender: TObject);
     procedure CopyAllGridActionExecute(Sender: TObject);
@@ -171,6 +172,7 @@ type
     procedure AfterTableListActionExecute(Sender: TObject);
     procedure TableListActionExecute(Sender: TObject);
     procedure TreeViewChange(Sender: TObject; Node: TTreeNode);
+    procedure AfterFieldListActionExecute(Sender: TObject);
   private
     msTreeView: TTreeViewEx;
     sybTreeView: TTreeViewEx;
@@ -220,6 +222,7 @@ type
     procedure DoSql(const SqlText: string);
     procedure DoSqlIndex(const SqlText: string);
     procedure DoSqlGetTableList(const SqlTableText: string);
+    procedure DoGetFields(const SqlTableName: string);
     procedure DoConnect;
   end;
 
@@ -609,7 +612,7 @@ var
 begin
   Obj := TSqlIndexObject(TAction(Sender).Tag);
   if (Obj.ErrMessage = '') and (Obj.Indexes.Count>0) then
-    TDiaPlugin(Npp).ShowAutocompletion(Obj.Description,Obj.Indexes);
+    TDiaPlugin(Npp).ShowAutocompletionIndex(Obj.Description,Obj.Indexes);
 end;
 
 procedure TlogForm.AfterTableListActionExecute(Sender: TObject);
@@ -689,6 +692,21 @@ begin
   Show;
 end;
 
+procedure TlogForm.AfterFieldListActionExecute(Sender: TObject);
+var
+  Obj: TFieldListObject;
+  S: string;
+begin
+  TdiaPlugin(Npp).SetCursor(crNormal);
+  Obj := TFieldListObject(TAction(Sender).Tag);
+  if (Obj.ErrMessage = '') and (Obj.FieldList.Count>0) then
+  begin
+    Obj.FieldList.Delimiter := ' ';
+    S := Obj.FieldList.DelimitedText;
+    TDiaPlugin(Npp).ShowAutocompletionList(0, S);
+  end;
+end;
+
 procedure TlogForm.AfterPrActionExecute(Sender: TObject);
 var
   Obj: TPrThreadObject;
@@ -750,6 +768,45 @@ end;
 procedure TlogForm.DoConnect;
 begin
   ConnectAction.Execute;
+end;
+
+procedure TlogForm.DoGetFields(const SqlTableName: string);
+var
+  SqlThread: TFieldListObject;
+  CString,CName: string;
+  TreeNode: TTreeNode;
+begin
+  TreeNode := BasesPanel.CurrentNode;
+  if Assigned(TreeNode) then
+    if (TreeNode.ItemType in [itBase,itBaseRTI]) then
+    begin
+      if BasesPanel.BdType = bdODBC then Exit;
+      CString := BasesPanel.ConnectionString;
+      CName := Format(cnstSqlExec,[
+                                   BasesPanel.CurrentServer,
+                                   BasesPanel.CurrentBase,
+                                   BasesPanel.CurrentUser
+                                   ]);
+      if CString = '' then
+      begin
+        CString := CurrentScrollBox.ConnectionString;
+        CName   := CurrentScrollBox.Description;
+      end;
+
+      if CString <> '' then
+      begin
+        SqlThread := TFieldListObject.Create;
+        SqlThread.SQL.Text := SqlTableName;
+        SqlThread.Description := '';
+        SqlThread.BdType := BasesPanel.BdType;
+        SqlThread.Name := CName;
+        SqlThread.ConnectionString := CString;
+        SqlThread.OnAfterAction := AfterFieldListAction;
+        SqlThread.WinHandle := self.Handle;
+        SqlThread.Start;
+      end;
+    end;
+  TableListAction.Hint := '';
 end;
 
 procedure TlogForm.DoHelpSql(help: THelpType; const SqlText: string);
@@ -850,7 +907,7 @@ begin
         else
           S := S.Substring(iPos+1,iLastPos-iPos-1);
 
-        TDiaPlugin(Npp).ShowAutocompletionTableList(Length(SqlTableText), S);
+        TDiaPlugin(Npp).ShowAutocompletionList(Length(SqlTableText), S);
       end;
     end
     else

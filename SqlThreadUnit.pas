@@ -92,6 +92,17 @@ type
     property Node: TTreeNode read FTreeNode write FTreeNode;
   end;
 
+  TFieldListObject = class(TSqlThreadObject)
+  private
+    FFieldList: TStringList;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    property FieldList: TStringList read FFieldList;
+  end;
+
 function ConvertSqlText(const SybStyle: boolean; SqlText: TStringList): TStringList;
 procedure ReplaceConstants(SqlText: TStringList);
 
@@ -811,6 +822,65 @@ begin
               FTableList.Add(Trim(VarToStr(V)));
               rs.MoveNext;
             end;
+    finally
+      cmd.Set_ActiveConnection(nil);
+      cmd  := nil;
+    end;
+  finally
+    Conn.Close;
+    Conn := nil;
+  end;
+end;
+
+{ TFieldListObject }
+
+constructor TFieldListObject.Create;
+begin
+  inherited;
+  FFieldList := nil;
+end;
+
+destructor TFieldListObject.Destroy;
+begin
+  if Assigned(FFieldList) then FFieldList.Free;
+  inherited;
+end;
+
+procedure TFieldListObject.Execute;
+var
+  cmd  : _Command;
+  Conn : _Connection;
+  rs   : _RecordSet;
+  RA   : OleVariant;
+  i    : Integer;
+begin
+  Conn := CreateComObject(CLASS_Connection) as _Connection;
+  try
+    Conn.ConnectionString := FConnectionString;
+    Conn.Open(Conn.ConnectionString,'','',Integer(adConnectUnspecified));
+    cmd := CreateComObject(CLASS_Command) as _Command;
+    try
+      cmd.CommandType := adCmdUnknown;
+      cmd.Set_ActiveConnection(Conn);
+      cmd.CommandText := Format(cnstGetFieldsSQL,[SQL[0]]);
+
+      try
+        rs := cmd.Execute(RA,EmptyParam,Integer(adCmdUnknown));
+      except
+        on E: Exception do
+        begin
+          ErrMessage := E.Message;
+          Exit;
+        end;
+      end;
+
+      FFieldList := TStringList.Create;
+      FFieldList.CaseSensitive := False;
+      if not FThread.Terminated then
+        if (rs.State = adStateOpen) then
+          for i := 0 to rs.Fields.Count-1 do
+              FFieldList.Add(rs.Fields[i].Name);
+      FFieldList.Sort;
     finally
       cmd.Set_ActiveConnection(nil);
       cmd  := nil;
