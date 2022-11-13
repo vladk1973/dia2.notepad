@@ -760,6 +760,8 @@ type
 
     function SelectedText: nppString;
     function GetText: nppString;
+    function GetTextLength: Integer;
+    function GetLineCount: Integer;
 
     function CmdIdFromDlgId(DlgId: Integer): Integer;
     function Sci_Send(Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT;
@@ -1037,7 +1039,7 @@ var Size: NativeInt;
     S: AnsiString;
 begin
   Result := '';
-  Size := Sci_Send(SCI_GETLENGTH, 0, 0);
+  Size := GetTextLength;
   if not HasV5Apis then
     Inc(Size);
   if Size>0 then
@@ -1050,6 +1052,16 @@ begin
       SetLength(S,0);
     end;
   end;
+end;
+
+function TNppPlugin.GetTextLength: Integer;
+begin
+  Result := Sci_Send(SCI_GETLENGTH, 0, 0);
+end;
+
+function TNppPlugin.GetLineCount: Integer;
+begin
+  Result := Sci_Send(SCI_GETLINECOUNT, 0, 0);
 end;
 
 procedure TNppPlugin.SetInfo(NppData: TNppData);
