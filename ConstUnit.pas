@@ -16,6 +16,7 @@ type
   TBeginProcArray = array[0..4] of string;
   TBeginAlignArray = array[0..9] of string;
   TOperatorsArray = array[0..3] of string;
+  TTablesOperatorsArray = array[0..5] of string;
 
   TShowMode = (shSql,shPr,shCI);
   TCursorMode = (crNormal,crWait);
@@ -157,12 +158,14 @@ const
 
   cnstT1 = 'join ';
   cnstT2 = 'from ';
+  cnstT3 = 'into ';
 
   cnstOperator1 = 'select ';
   cnstOperator2 = 'insert ';
   cnstOperator3 = 'update ';
   cnstOperator4 = 'delete ';
   cnstOperators: TOperatorsArray = (cnstOperator1,cnstOperator2,cnstOperator3,cnstOperator4);
+  cnstTablesOperators: TTablesOperatorsArray = (cnstT1,cnstT2,cnstOperator2,cnstOperator3,cnstOperator4,cnstT3);
 
 
   cnstTracingChar = 40;

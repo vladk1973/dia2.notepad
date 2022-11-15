@@ -226,7 +226,7 @@ type
     procedure DoHelpSql(help: THelpType; const SqlText: string);
     procedure DoSql(const SqlText: string);
     procedure DoSqlIndex(const SqlText: string);
-    procedure DoSqlGetTableList(const SqlTableText: string);
+    procedure DoSqlGetTableList(const SqlTableText: string; SoftMode: boolean = False);
     procedure DoGetFields(const SqlTableName: string);
     procedure DoConnect;
   end;
@@ -906,7 +906,7 @@ begin
     MessageError(cnstNoBaseSelected,cnstErroCaption);
 end;
 
-procedure TlogForm.DoSqlGetTableList(const SqlTableText: string);
+procedure TlogForm.DoSqlGetTableList(const SqlTableText: string; SoftMode: boolean = False);
 var
   TreeNode: TTreeNode;
   S: string;
@@ -935,6 +935,7 @@ begin
       end;
     end
     else
+    if not SoftMode then
     begin
       TableListAction.Hint := SqlTableText;
       TableListAction.Execute;

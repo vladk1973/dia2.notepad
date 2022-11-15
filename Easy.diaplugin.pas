@@ -17,6 +17,7 @@ type
     { Private declarations }
     FLogForm: TLogForm;
     procedure ProcessSqlFields(const S: string);
+    procedure ProcessSQLTables;
   public
     constructor Create;
 
@@ -185,12 +186,22 @@ begin
 end;
 
 procedure TdiaPlugin.DoNppnCharAdded(const ASCIIKey: Integer);
+  function IsAlphabetKey: boolean;
+  var
+    S,S1: string;
+  begin
+    S := Char(ASCIIKey);
+    S1 := cnstNumbers+cnstAlphabetStartWord+'_';
+    Result := S1.IndexOf(S.ToLower)>=0;
+  end;
 var
   Size,Len: Integer;
   S: AnsiString;
 begin
   if not Assigned(FLogForm) then Exit;
-
+  if IsAlphabetKey then
+    ProcessSQLTables
+  else
   if ASCIIKey in [cnstTracingChar,cnstTracingFieldChar] then
   begin
     Size := Sci_Send(SCI_GETCURLINE, 0, 0);
@@ -403,6 +414,56 @@ begin
     TLogForm(FLogForm).DoSql(cnstShowPlan + S);
   end;
 
+end;
+
+procedure TdiaPlugin.ProcessSQLTables;
+const SoftMode = False;
+var
+  Size: NativeInt;
+  S: AnsiString;
+  CanContinue: boolean;
+  S1,S2,SOperator: string;
+  i, iCurrentPos: Integer;
+begin
+  Size := Sci_Send(SCI_GETCURLINE, 0, 0);
+
+  SetLength(S,Size);
+  try
+    iCurrentPos := Sci_Send(SCI_GETCURLINE, Size, LPARAM(PAnsiChar(S)));
+    if not HasV5Apis then
+      SetLength(S,Size-1);
+    S1 := RemoveCarriageReturn(Copy(S,1,iCurrentPos));
+
+    if S1 = '' then Exit;
+    if S1.EndsWith(' ') then Exit;
+    SOperator := S1.Substring(0,S1.LastIndexOf(' ')).TrimRight;
+    S1 := S1.Substring(S1.LastIndexOf(' ')+1);
+    if S1.Length<3 then Exit;
+
+    CanContinue := False;
+    for S2 in cnstTablesOperators do
+      if SOperator.EndsWith(S2.TrimRight,True) then
+      begin
+        CanContinue := True;
+        Break;
+      end;
+    if not CanContinue then Exit;
+
+
+{$IFNDEF NPPCONNECTIONS}
+    for i in cnstTracingDataBaseChar do
+      if S1.StartsWith(Char(i)) then
+      begin
+        FLogForm.DoSqlGetTableList(S1,SoftMode);
+        Exit;
+      end;
+{$ELSE}
+    FLogForm.DoSqlGetTableList(S1,SoftMode);
+{$ENDIF}
+
+  finally
+    SetLength(S,0);
+  end;
 end;
 
 procedure TdiaPlugin.FuncExecSQLTables;
