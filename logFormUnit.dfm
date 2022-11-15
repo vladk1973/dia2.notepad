@@ -1,5 +1,4 @@
 inherited logForm: TlogForm
-  Caption = 'Easy.dia'
   ClientHeight = 625
   ClientWidth = 860
   KeyPreview = True
@@ -624,6 +623,7 @@ inherited logForm: TlogForm
     object CopyGridRowAction: TAction
       Category = 'SQL'
       Caption = #1057#1082#1086#1087#1080#1088#1086#1074#1072#1090#1100' '#1074' '#1073#1091#1092#1077#1088' '#1086#1073#1084#1077#1085#1072
+      HelpKeyword = 'Copy to clipboard'
       Hint = #1057#1082#1086#1087#1080#1088#1086#1074#1072#1090#1100' '#1074' '#1073#1091#1092#1077#1088' '#1086#1073#1084#1077#1085#1072
       ShortCut = 16451
       OnExecute = CopyGridRowActionExecute
@@ -631,24 +631,28 @@ inherited logForm: TlogForm
     object CopyAllGridAction: TAction
       Category = 'SQL'
       Caption = #1057#1082#1086#1087#1080#1088#1086#1074#1072#1090#1100' '#1090#1072#1073#1083#1080#1094#1091
+      HelpKeyword = 'Copy table'
       Hint = #1057#1082#1086#1087#1080#1088#1086#1074#1072#1090#1100' '#1090#1072#1073#1083#1080#1094#1091
       OnExecute = CopyAllGridActionExecute
     end
     object OpenListBDAction: TAction
       Category = 'BD'
       Caption = #1055#1086#1076#1082#1083#1102#1095#1077#1085#1080#1103
+      HelpKeyword = 'Connections'
       Hint = #1055#1086#1076#1082#1083#1102#1095#1077#1085#1080#1103
       OnExecute = OpenListBDActionExecute
     end
     object ConnectAction: TAction
       Category = 'BD'
       Caption = #1053#1086#1074#1086#1077' '#1087#1086#1076#1082#1083#1102#1095#1077#1085#1080#1077
+      HelpKeyword = 'New connection'
       Hint = #1053#1086#1074#1086#1077' '#1087#1086#1076#1082#1083#1102#1095#1077#1085#1080#1077
       OnExecute = ConnectActionExecute
     end
     object DisonnectSQLAction: TAction
       Category = 'BD'
       Caption = #1054#1090#1082#1083#1102#1095#1080#1090#1100#1089#1103
+      HelpKeyword = 'Disconnect'
       Hint = #1054#1090#1082#1083#1102#1095#1080#1090#1100#1089#1103
       OnExecute = DisonnectSQLActionExecute
       OnUpdate = DisonnectSQLActionUpdate
@@ -752,12 +756,14 @@ inherited logForm: TlogForm
     object addFavoriteConnectionAction: TAction
       Category = 'Favorite'
       Caption = #1044#1086#1073#1072#1074#1080#1090#1100
+      HelpKeyword = 'Save'
       OnExecute = addFavoriteConnectionActionExecute
       OnUpdate = DisonnectSQLActionUpdate
     end
     object removeFavoriteConnectionAction: TAction
       Category = 'Favorite'
       Caption = #1059#1076#1072#1083#1080#1090#1100
+      HelpKeyword = 'Delete'
       OnExecute = removeFavoriteConnectionActionExecute
       OnUpdate = DisonnectSQLActionUpdate
     end
@@ -769,6 +775,7 @@ inherited logForm: TlogForm
     object SqlShowModeAction: TAction
       Category = 'ShowMode'
       Caption = 'SQL '#1088#1077#1079#1091#1083#1100#1090#1072#1090#1099
+      HelpKeyword = 'SQL results'
       OnExecute = SqlShowModeActionExecute
     end
     object AfterPrAction: TAction
@@ -836,7 +843,7 @@ inherited logForm: TlogForm
     Left = 120
     Top = 576
     Bitmap = {
-      494C010104009801080312001200FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C010104009801140312001200FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000480000002400000001002000000000008028
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
@@ -1184,17 +1191,18 @@ inherited logForm: TlogForm
     OnPopup = TreeViewPopupMenuPopup
     Left = 160
     Top = 202
-    object N8: TMenuItem
+    object New_Connection: TMenuItem
       Action = ConnectAction
     end
-    object N9: TMenuItem
+    object Disconnect: TMenuItem
       Action = DisonnectSQLAction
     end
     object N6: TMenuItem
       Caption = '-'
     end
-    object FavoriteItems: TMenuItem
+    object My_Connections: TMenuItem
       Caption = #1052#1086#1080' '#1087#1086#1076#1082#1083#1102#1095#1077#1085#1080#1103
+      Hint = 'My connections'
       object AddOrRemoveFavoriteItem: TMenuItem
         Action = addFavoriteConnectionAction
       end
@@ -1205,10 +1213,10 @@ inherited logForm: TlogForm
     object N10: TMenuItem
       Caption = '-'
     end
-    object N11: TMenuItem
+    object RTIStartItem: TMenuItem
       Action = rtiRecordAction
     end
-    object RTI1: TMenuItem
+    object RTIStopItem: TMenuItem
       Action = rtiRecordStopAction
     end
     object RTI2: TMenuItem
@@ -1254,7 +1262,7 @@ inherited logForm: TlogForm
     Left = 112
     Top = 528
     Bitmap = {
-      494C010104006C01F40212001200FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C010104006C01000312001200FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000480000002400000001002000000000008028
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000
@@ -1602,7 +1610,7 @@ inherited logForm: TlogForm
     Left = 176
     Top = 40
     Bitmap = {
-      494C010102009000580110001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C010102009000640110001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000001000000001002000000000000010
       0000000000000000000000000000000000000000000000000000000000000000
       0000000000000000000000000000000000000000000000000000000000000000

@@ -27,6 +27,8 @@ uses
   SqlPPConsoleUnit in 'SqlPPConsoleUnit.pas',
   logFormUnit in 'logFormUnit.pas' {logForm},
   PrFormUnit in 'PrFormUnit.pas' {PrForm},
+  LogWriterUnit in 'LogWriterUnit.pas',
+  diaConstUnit in 'diaConstUnit.pas',
   GetFolderDialogUnit in 'GetFolderDialogUnit.pas',
   SqlThreadUnit in 'SqlThreadUnit.pas',
   StringGridsUnit in 'StringGridsUnit.pas',
@@ -35,13 +37,10 @@ uses
   BDLoginUnit in 'BDLoginUnit.pas' {BDLoginForm},
   LogFormHelpersUnit in 'LogFormHelpersUnit.pas',
   TreeViewExUnit in 'TreeViewExUnit.pas',
-  LogWriterUnit in 'LogWriterUnit.pas',
-  lookupProcUnit in 'lookupProcUnit.pas' {lForm},
   NppDockingForms in 'lib\NppDockingForms.pas' {NppDockingForm},
   NppForms in 'lib\NppForms.pas' {NppForm},
   nppplugin in 'lib\nppplugin.pas',
   SciSupport in 'lib\SciSupport.pas',
-  AlignStringsUnit in 'AlignStringsUnit.pas',
   regUnit in 'regUnit.pas',
   CustomDialogUnit in 'CustomDialogUnit.pas' {CustomDialogForm};
 

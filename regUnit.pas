@@ -4,7 +4,9 @@ interface
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
-  Dialogs, NppForms, StdCtrls, Buttons, ExtCtrls, ConstUnit,
+  Dialogs, NppForms, StdCtrls, Buttons, ExtCtrls,
+  ConstUnit,
+  {$IFNDEF NPPCONNECTIONS}diaConstUnit,{$ENDIF}
   IniFiles, Registry, System.Actions;
 
 type
@@ -14,7 +16,10 @@ type
     function GetConnectToList(bd: TBdType): TStringList;
 
     class function GetConnectionString(bd: TBdType): string;
+
+    {$IFNDEF NPPCONNECTIONS}
     class function GetPostgreSQLConvertString: string;
+    {$ENDIF}
 
     class procedure SaveFavoriteConnection(bd: TBdType; const Key,Value: string);
     class procedure DeleteFavoriteConnection(bd: TBdType; const Value: string);
@@ -86,6 +91,7 @@ begin
   end;
 end;
 
+{$IFNDEF NPPCONNECTIONS}
 class function TOptionsReg.GetPostgreSQLConvertString: string;
 var
   S: string;
@@ -111,6 +117,7 @@ begin
 
   Result := S;
 end;
+{$ENDIF}
 
 class function TOptionsReg.GetVisibleStatusBDButton(bd: TBdType): boolean;
 var

@@ -5,6 +5,7 @@ interface
 uses
   System.SysUtils, Winapi.Windows, Vcl.Controls, Winapi.Messages, Vcl.Dialogs, Vcl.Forms,
   System.Classes, ComCtrls, System.Contnrs, System.Math, Data.DB,Data.Win.ADODB,
+  {$IFNDEF NPPCONNECTIONS}diaConstUnit,{$ENDIF}
   ConstUnit, SqlThreadUnit;
 
 type
@@ -43,6 +44,8 @@ type
 implementation
 
 { TLogWriter }
+const
+  c_Tab   = #9;
 
 procedure TLogWriter.AddLine(Value: string);
 begin
@@ -80,7 +83,7 @@ var
     begin
       vStr1 := copy(pStrLine, 0, i - 1);
       vStr2 := copy(pStrLine, i, length(pStrLine) - i);
-      j := Pos(LineEnd, UpperCase(vStr2));
+      j := Pos(sLineBreak, UpperCase(vStr2));
       if j > 0 then
       begin
         vStr3 := copy(vStr2, 0, j - 1);
@@ -123,7 +126,7 @@ begin
   else
   begin
     FContinue := True;
-    vStrLine := StrLine + LineEnd +
+    vStrLine := StrLine + sLineBreak +
                 copy(pText, idx + 9, length(pText) - 9);
     StrLine  := '';
   end;

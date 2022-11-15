@@ -6,6 +6,7 @@ uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, NppForms, StdCtrls, Buttons, ExtCtrls, ConstUnit, regUnit,
   IniFiles, Registry, System.Actions, Vcl.ActnList, Data.DB, Vcl.Grids,
+  {$IFNDEF NPPCONNECTIONS}diaConstUnit,{$ENDIF}
   Vcl.DBGrids, Data.Win.ADODB, CustomDialogUnit;
 
 type
@@ -112,7 +113,7 @@ begin
   Strings.Clear;
   while (SQLDataSources(hEnv,direction,@datasrc[0],MAX_BUF,@rdsrc,@descrip[0],MAX_BUF,@rdesc)<>SQL_NO_DATA) do
   begin
-    Strings.Add(AnsiString(datasrc)+ '||');
+    Strings.Add(string(datasrc)+ '||');
     direction:=SQL_FETCH_NEXT;
   end;
   SQLFreeHandle(SQL_HANDLE_ENV, hEnv);
@@ -470,9 +471,6 @@ end;
 procedure TBDLoginForm.SaveCurrentDataSourceToRegistry;
 var
   Options: TOptionsReg;
-  Servers : TStringList;
-  i,j,FPort: integer;
-  S,FServer: string;
 begin
   if cbCustom.Checked then
   begin

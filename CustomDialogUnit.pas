@@ -5,6 +5,7 @@ interface
 uses
   Windows, Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.StdCtrls, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, NppForms, Vcl.ExtCtrls,
+  {$IFDEF NPPCONNECTIONS}TranslateComponentsUnit,{$ENDIF}
   Vcl.Buttons;
 
 type
@@ -28,7 +29,6 @@ type
     procedure ChangeColorMode(Sender: TObject); override;
   public
     function DoForm: TModalResult; virtual;
-    { Public declarations }
   end;
 
 var
@@ -106,18 +106,26 @@ procedure TCustomDialogForm.FormCreate(Sender: TObject);
 begin
   windows.SetWindowLong(Handle, GWL_STYLE, GetWindowLong(Handle, GWL_STYLE) and not WS_CAPTION);
   windows.SetWindowPos(Handle, HWND_TOP,Left, Top,Width, Height, SWP_FRAMECHANGED);
+
+{$IFDEF NPPCONNECTIONS}
+  TranslateComponents(Self);
+{$ENDIF}
+
   if DarkMode then
   begin
     OkPanel.Visible := True;
     OkPanel.Top := OkBtn.Top;
+    OkPanel.Caption := OkBtn.Caption;
     OkPanel.Left := OkBtn.Left;
     CancelPanel.Visible := True;
     CancelPanel.Top := CancelBtn.Top;
+    CancelPanel.Caption := CancelBtn.Caption;
     CancelPanel.Left := CancelBtn.Left;
     OkBtn.Visible := False;
     CancelBtn.Visible := False;
   end;
   TopPanel.Caption := Caption;
+
 end;
 
 procedure TCustomDialogForm.OkPanelClick(Sender: TObject);

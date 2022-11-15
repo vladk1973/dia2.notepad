@@ -145,6 +145,7 @@ inherited PrForm: TPrForm
   inherited TopPanel: TPanel
     Width = 443
     TabOrder = 6
+    ExplicitWidth = 443
   end
   inherited OkPanel: TPanel
     Left = 253

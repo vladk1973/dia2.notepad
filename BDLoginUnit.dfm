@@ -59,6 +59,8 @@ inherited BDLoginForm: TBDLoginForm
     Top = 103
     Width = 25
     Height = 13
+    HelpType = htKeyword
+    HelpKeyword = 'Port'
     Caption = #1055#1086#1088#1090
   end
   object Label2: TLabel [3]
@@ -66,6 +68,8 @@ inherited BDLoginForm: TBDLoginForm
     Top = 139
     Width = 22
     Height = 13
+    HelpType = htKeyword
+    HelpKeyword = 'Login'
     Caption = #1048#1084#1103
   end
   object Label3: TLabel [4]
@@ -73,6 +77,8 @@ inherited BDLoginForm: TBDLoginForm
     Top = 175
     Width = 38
     Height = 13
+    HelpType = htKeyword
+    HelpKeyword = 'Password'
     Caption = #1055#1072#1088#1086#1083#1100
   end
   object Label4: TLabel [5]
@@ -80,11 +86,15 @@ inherited BDLoginForm: TBDLoginForm
     Top = 37
     Width = 87
     Height = 13
+    HelpType = htKeyword
+    HelpKeyword = 'Custom select'
+    Alignment = taRightJustify
     Caption = #1059#1082#1072#1079#1072#1090#1100' '#1074#1088#1091#1095#1085#1091#1102
   end
   inherited TopPanel: TPanel
     Width = 239
     TabOrder = 5
+    ExplicitWidth = 239
   end
   inherited OkPanel: TPanel
     Left = 57
@@ -103,6 +113,8 @@ inherited BDLoginForm: TBDLoginForm
   inherited CancelBtn: TBitBtn
     Left = 138
     Top = 209
+    HelpType = htKeyword
+    HelpKeyword = 'Cancel'
     TabOrder = 8
     ExplicitLeft = 138
     ExplicitTop = 209
@@ -134,19 +146,15 @@ inherited BDLoginForm: TBDLoginForm
     Font.Name = 'MS Sans Serif'
     Font.Style = []
     ItemHeight = 18
-    ItemIndex = 0
     ParentCtl3D = False
     ParentDoubleBuffered = False
     ParentFont = False
     ParentShowHint = False
     ShowHint = False
     TabOrder = 0
-    Text = #1057#1077#1088#1074#1077#1088
     StyleElements = []
     OnChange = ServerListChange
     OnDrawItem = ServerListDrawItem
-    Items.Strings = (
-      #1057#1077#1088#1074#1077#1088)
   end
   object cbCustom: TCheckBox
     Left = 196
@@ -174,7 +182,6 @@ inherited BDLoginForm: TBDLoginForm
     Top = 100
     Width = 140
     Height = 21
-    Hint = #1055#1086#1088#1090
     BevelEdges = []
     BevelInner = bvNone
     BevelOuter = bvNone
@@ -190,7 +197,6 @@ inherited BDLoginForm: TBDLoginForm
     Top = 172
     Width = 140
     Height = 21
-    Hint = #1055#1072#1088#1086#1083#1100' '#1087#1086#1083#1100#1079#1086#1074#1072#1090#1077#1083#1103
     BevelEdges = []
     BevelInner = bvNone
     BevelOuter = bvNone
@@ -205,7 +211,6 @@ inherited BDLoginForm: TBDLoginForm
     Top = 136
     Width = 140
     Height = 21
-    Hint = #1048#1084#1103' '#1087#1086#1083#1100#1079#1086#1074#1072#1090#1077#1083#1103
     BevelEdges = []
     BevelInner = bvNone
     BevelOuter = bvNone
@@ -219,11 +224,13 @@ inherited BDLoginForm: TBDLoginForm
     Top = 155
     object OkAction: TAction
       Caption = 'OK'
+      HelpKeyword = 'OK'
       OnExecute = OkActionExecute
       OnUpdate = OkActionUpdate
     end
     object customAction: TAction
       Caption = #1059#1082#1072#1079#1072#1090#1100' '#1074#1088#1091#1095#1085#1091#1102
+      HelpKeyword = 'Custom select'
       OnExecute = customActionExecute
       OnUpdate = customActionUpdate
     end

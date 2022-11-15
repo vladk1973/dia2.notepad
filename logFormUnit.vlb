@@ -1,9 +1,6 @@
 ﻿[N3]
 Coordinates=0,137,40,36
 
-[N11]
-Coordinates=378,78,40,36
-
 [P8]
 Coordinates=260,10,49,58
 
@@ -51,9 +48,6 @@ Coordinates=551,56,102,36
 
 [N12]
 Coordinates=231,365,40,36
-
-[N9]
-Coordinates=182,365,40,36
 
 [N7]
 Coordinates=133,365,40,36
@@ -151,9 +145,6 @@ Coordinates=708,221,99,36
 [odbcModeAction]
 Coordinates=708,276,110,36
 
-[RTI1]
-Coordinates=355,439,42,36
-
 [OpenListBDAction]
 Coordinates=844,166,120,36
 
@@ -162,9 +153,6 @@ Coordinates=844,221,130,36
 
 [BasesPanel]
 Coordinates=316,78,83,58
-
-[N8]
-Coordinates=306,439,40,36
 
 [TreeViewPopupMenu]
 Coordinates=844,276,138,36
@@ -183,4 +171,16 @@ Coordinates=376,146,60,36
 
 [blackTreeImageList]
 Coordinates=708,331,97,36
+
+[Disconnect]
+Coordinates=182,365,40,36
+
+[New_Connection]
+Coordinates=306,439,40,36
+
+[RTIStartItem]
+Coordinates=378,78,40,36
+
+[RTIStopItem]
+Coordinates=355,439,42,36
 

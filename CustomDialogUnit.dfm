@@ -17,7 +17,6 @@ inherited CustomDialogForm: TCustomDialogForm
     ParentBackground = False
     TabOrder = 0
     OnMouseDown = TopPanelMouseDown
-    ExplicitWidth = 218
   end
   object OkPanel: TPanel
     Left = 156

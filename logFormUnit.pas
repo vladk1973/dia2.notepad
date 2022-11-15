@@ -9,6 +9,7 @@ uses
   SHDocVw, Vcl.Grids, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ToolWin,
   Vcl.PlatformDefaultStyleActnCtrls, Vcl.ActnMan, Vcl.ActnCtrls,
   StringGridsUnit, ConstUnit, StringGridExUnit, ExtScrollingWinControlUnit, NppDockingForms, nppplugin,
+  {$IFDEF NPPCONNECTIONS}TranslateComponentsUnit,{$ENDIF}
   Vcl.ExtCtrls, Vcl.WinXCtrls, Vcl.ActnPopup, TreeViewExUnit;
 
 type
@@ -33,11 +34,11 @@ type
     invTreeView: TTreeView;
     Panel1: TPanel;
     TreeViewPopupMenu: TPopupMenu;
-    N8: TMenuItem;
-    N9: TMenuItem;
+    New_Connection: TMenuItem;
+    Disconnect: TMenuItem;
     N10: TMenuItem;
-    N11: TMenuItem;
-    RTI1: TMenuItem;
+    RTIStartItem: TMenuItem;
+    RTIStopItem: TMenuItem;
     N12: TMenuItem;
     GridMenu: TPopupMenu;
     N1: TMenuItem;
@@ -80,7 +81,7 @@ type
     odbc: TPanel;
     whiteTreeImageList: TImageList;
     N6: TMenuItem;
-    FavoriteItems: TMenuItem;
+    My_Connections: TMenuItem;
     AddOrRemoveFavoriteItem: TMenuItem;
     addFavoriteConnectionAction: TAction;
     NFavoriteLine: TMenuItem;
@@ -217,7 +218,11 @@ type
     property CurrentNode: TTreeNode read FCurrentNode write SetCurrentNode;
     property CurrentScrollBox: TExScrollBox read GetCurrentScrollBox;
   public
+
+   {$IFNDEF NPPCONNECTIONS}
     procedure DoPrForm;
+   {$ENDIF}
+
     procedure DoHelpSql(help: THelpType; const SqlText: string);
     procedure DoSql(const SqlText: string);
     procedure DoSqlIndex(const SqlText: string);
@@ -230,9 +235,13 @@ implementation
 
 uses
   scisupport, Easy.diaplugin,Vcl.Clipbrd,
-  ThreadUnit, SqlThreadUnit,CommandThreadUnit,
-  BDLoginUnit, LogFormHelpersUnit,
-  regUnit, LogWriterUnit, PrFormUnit
+  ThreadUnit, SqlThreadUnit,
+  BDLoginUnit,
+  regUnit,
+  {$IFNDEF NPPCONNECTIONS}
+  LogWriterUnit,diaConstUnit,PrFormUnit,CommandThreadUnit,
+  {$ENDIF}
+  LogFormHelpersUnit
   ;
 
 
@@ -241,7 +250,6 @@ uses
 function UserName(Data: string): string;
 var
   S: string;
-  iPos: integer;
 begin
   Result := '';
   S := Data.Substring(Data.IndexOf('Login=')+6,MaxInt);
@@ -249,7 +257,7 @@ begin
   if S<>'' then Result := Format(' (%s)',[S]);
 end;
 
-
+{$IFNDEF NPPCONNECTIONS}
 procedure TlogForm.DoPrForm;
 var
   FPrForm: TPrForm;
@@ -293,6 +301,7 @@ begin
     FPrForm := nil;
   end;
 end;
+{$ENDIF}
 
 procedure TlogForm.DeclareVarsActionExecute(Sender: TObject);
 begin
@@ -544,7 +553,7 @@ begin
     SqlThread.ConnectionString := TSplitView.GetConnectionString(Data,DataBase);
     SqlThread.OnAfterAction := AfterAddServerAction;
     SqlThread.WinHandle := self.Handle;
-    SqlThread.Start; //Запрашивам список баз
+    SqlThread.Start; //get Databases list
   end;
 end;
 
@@ -630,9 +639,13 @@ begin
 end;
 
 procedure TlogForm.AfterWriteRTIActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
 var
   Obj: TSqlQueryRTIObject;
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
+
   Obj := TSqlQueryRTIObject(TAction(Sender).Tag);
   if Obj.ErrMessage = '' then
   begin
@@ -643,15 +656,19 @@ begin
   end
   else
    MessageError(Obj.ErrMessage,cnstErroCaption);
+{$ENDIF}
 end;
 
 procedure TlogForm.AfterClearRTIActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
 var
   Obj: TSqlThreadObject;
   TreeView: TTreeViewEx;
   i: Integer;
   FServer,FBase: string;
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
   Obj := TSqlThreadObject(TAction(Sender).Tag);
   if Obj.ErrMessage = '' then
   begin
@@ -671,13 +688,16 @@ begin
   end
   else
    MessageError(Obj.ErrMessage,cnstErroCaption);
+{$ENDIF}
 end;
 
 procedure TlogForm.AfterConversionActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
 var
   Obj: TPgConversionThreadObject;
-
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
   Obj := TPgConversionThreadObject(TAction(Sender).Tag);
   if Obj.ErrMessage = '' then
     if FileExists(Obj.DestinationFile) then Npp.DoOpen(Obj.DestinationFile)
@@ -690,6 +710,7 @@ begin
     LogBox.Items.Add(Obj.ErrMessage);
   end;
   Show;
+{$ENDIF}
 end;
 
 procedure TlogForm.AfterFieldListActionExecute(Sender: TObject);
@@ -708,9 +729,12 @@ begin
 end;
 
 procedure TlogForm.AfterPrActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
 var
   Obj: TPrThreadObject;
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
   Obj := TPrThreadObject(TAction(Sender).Tag);
   if Obj.ErrMessage = '' then
   begin
@@ -732,6 +756,7 @@ begin
     LogBox.Items.Add(Obj.ErrMessage);
   end;
   Show;
+{$ENDIF}
 end;
 
 procedure TlogForm.AfterRTIActionExecute(Sender: TObject);
@@ -831,7 +856,6 @@ var
   SqlThread: TSqlExecutorObject;
   CString,CName: string;
   FResultScrollBox: TExScrollBox;
-  i: integer;
   ActivityIndicator: TActivityIndicator;
 begin
   FResultScrollBox := CurrentScrollBox;
@@ -953,6 +977,8 @@ end;
 
 procedure TlogForm.FormCreate(Sender: TObject);
 begin
+  Caption := Npp.PluginName;
+
   NppDefaultDockingMask := DWS_DF_FLOATING;
   FRTIFileName := '';
   sql.Align := alClient;
@@ -986,6 +1012,12 @@ begin
 
   RestoreBDButtons;
   RealignBDButtons;
+
+{$IFDEF NPPCONNECTIONS}
+  rightPanel.Visible := False;
+  TranslateComponents(Self);
+{$ENDIF}
+
   SqlShowModeAction.Execute;
 end;
 
@@ -1077,8 +1109,6 @@ begin
         Grid.Parent := FResultScrollBox;
         FResultScrollBox.InsertComponent(Grid);
         Grid.Align := alTop;
-        //Grid.Left := 10;
-        //Grid.Top := 10;
         Grid.FixedCols := 0;
 
         if Grid.RowCount > 1 then
@@ -1164,7 +1194,7 @@ var
   S: AnsiString;
   Stream: TFileStream;
 begin
-  if Confirmed(cnstOpenPlanMessage,'Подтверждение') then
+  if Confirmed(cnstOpenPlanMessage,cnstConfirm) then
   begin
     ATempPath := TempPath;
     GetTempFileName(PChar(ATempPath), 'p', 0, lpTempFileName);
@@ -1432,7 +1462,7 @@ procedure TlogForm.OnGetSelectedText(Strings: TStrings);
 var S: string;
     N: integer;
 begin
-  S := TDiaPlugin(Npp).SelectedText;
+  S := string(TDiaPlugin(Npp).SelectedText);
   N := Length(S);
   if N > 0 then Strings.Text := S;
 end;
@@ -1497,9 +1527,12 @@ begin
 end;
 
 procedure TlogForm.pgConvertActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
 var
   CmdThread: TPgConversionThreadObject;
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
   CmdThread := TPgConversionThreadObject.Create;
   CmdThread.Description := FSubFile;
   CmdThread.SourceFile := FSubFile;
@@ -1507,6 +1540,7 @@ begin
   CmdThread.OnAfterAction := AfterConversionAction;
   CmdThread.WinHandle := self.Handle;
   CmdThread.Start;
+{$ENDIF}
 end;
 
 
@@ -1537,7 +1571,7 @@ end;
 
 procedure TlogForm.PrActionExecute(Sender: TObject);
 begin
-  DoPrForm;
+  {$IFNDEF NPPCONNECTIONS}DoPrForm;{$ENDIF}
 end;
 
 procedure TlogForm.PrActionUpdate(Sender: TObject);
@@ -1577,6 +1611,7 @@ begin
 end;
 
 procedure TlogForm.ReloadPrActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
   procedure SetLogBoxHorzScrollBarVisible;
   var
     i, MaxWidth: integer;
@@ -1589,7 +1624,9 @@ procedure TlogForm.ReloadPrActionExecute(Sender: TObject);
 
 var
   Strings: TStringList;
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
   if (FLogFile <> '') and FileExists(FLogFile) then
   begin
     Strings := TStringList.Create;
@@ -1603,12 +1640,16 @@ begin
     end;
     SetLogBoxHorzScrollBarVisible;
   end;
+{$ENDIF}
 end;
 
 procedure TlogForm.rtiClearActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
 var
   SqlThread: TSqlSilenceObject;
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
   if Confirmed(Format(cnstRecordClearConfirmation,[BasesPanel.CurrentBase]),cnstRecordConfirmationTitle) then
   begin
     SqlThread := TSqlSilenceObject.Create;
@@ -1626,12 +1667,16 @@ begin
     SqlThread.WinHandle := self.Handle;
     SqlThread.Start;
   end;
+{$ENDIF}
 end;
 
 procedure TlogForm.rtiRecordActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
 var
   SqlThread: TSqlSilenceObject;
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
   if Confirmed(Format(cnstRecordConfirmation,[BasesPanel.CurrentBase]),cnstRecordConfirmationTitle) then
   begin
     SqlThread := TSqlSilenceObject.Create;
@@ -1652,12 +1697,16 @@ begin
     SqlThread.WinHandle := self.Handle;
     SqlThread.Start;
   end;
+{$ENDIF}
 end;
 
 procedure TlogForm.rtiRecordStopActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
 var
   SqlThread: TSqlSilenceObject;
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
   if Confirmed(Format(cnstRecordStopConfirmation,[BasesPanel.CurrentBase]),cnstRecordConfirmationTitle) then
   begin
     SqlThread := TSqlSilenceObject.Create;
@@ -1676,13 +1725,17 @@ begin
     SqlThread.WinHandle := self.Handle;
     SqlThread.Start;
   end;
+{$ENDIF}
 end;
 
 procedure TlogForm.rtiSaveActionExecute(Sender: TObject);
+{$IFNDEF NPPCONNECTIONS}
 var
   F: string;
   SqlThread: TSqlQueryRTIObject;
+{$ENDIF}
 begin
+{$IFNDEF NPPCONNECTIONS}
   if FRTIFileName <> '' then F := FRTIFileName
   else
     Npp.GetFullFileName(F);
@@ -1715,6 +1768,7 @@ begin
     SqlThread.WinHandle := self.Handle;
     SqlThread.Start;
   end;
+{$ENDIF}
 end;
 
 procedure TlogForm.rtiRecordActionUpdate(Sender: TObject);
@@ -1911,7 +1965,7 @@ procedure TlogForm.TreeViewPopupMenuPopup(Sender: TObject);
     j: Integer;
     found: boolean;
   begin
-    Item := FavoriteItems[index];
+    Item := My_Connections[index];
     found := False;
     if Strings.Count>0 then
       for j := Strings.Count-1 to 0 do
@@ -1923,7 +1977,7 @@ procedure TlogForm.TreeViewPopupMenuPopup(Sender: TObject);
     if found then Strings.Delete(j)
     else
     begin
-      FavoriteItems.Delete(index);
+      My_Connections.Delete(index);
       Item.Free;
       Item := nil;
     end;
@@ -1940,22 +1994,22 @@ begin
   AddOrRemoveFavoriteItem.Action := addFavoriteConnectionAction;
   Strings := TOptionsReg.GetFavoriteList(BasesPanel.BdType);
   try
-    for i := FavoriteItems.Count-1 downto 2 do
+    for i := My_Connections.Count-1 downto 2 do
       CheckInStrings(Strings,i);
 
     for i := 0 to Strings.Count-1 do
     begin
       Data := Strings[i];
-      Item := TMenuItem.Create(FavoriteItems);
+      Item := TMenuItem.Create(My_Connections);
       Item.Caption := Data.Substring(0,Data.IndexOf('|')) + UserName(Data);
       Item.Hint := Data;
       Item.OnClick := FavoriteItemsClickProcedure;
-      FavoriteItems.Insert(FavoriteItems.Count, Item);
+      My_Connections.Insert(My_Connections.Count, Item);
     end;
 
     if Assigned(TreeNode) then
-      for i := FavoriteItems.Count-1 downto 2 do
-        if FavoriteItems[i].Hint = TTreeNodeEx(TreeNode).DataSource then
+      for i := My_Connections.Count-1 downto 2 do
+        if My_Connections[i].Hint = TTreeNodeEx(TreeNode).DataSource then
           AddOrRemoveFavoriteItem.Action := removeFavoriteConnectionAction;
 
   finally

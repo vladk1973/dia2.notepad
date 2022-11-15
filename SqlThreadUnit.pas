@@ -103,142 +103,11 @@ type
     property FieldList: TStringList read FFieldList;
   end;
 
-function ConvertSqlText(const SybStyle: boolean; SqlText: TStringList): TStringList;
-procedure ReplaceConstants(SqlText: TStringList);
-
 implementation
 
-uses System.Math;
-
-procedure ReplaceConstants(SqlText: TStringList);
-var
-  M: TStringList;
-  i,j,ipos: integer;
-  S,name,val: string;
-  changed: boolean;
-begin
-  M := TStringList.Create;
-  M.Text := M_CONST;
-  try
-    for i := 0 to SqlText.Count-1 do
-    begin
-      S := SqlText[i];
-      changed := False;
-      for j := 0 to M.Count-1 do
-      begin
-        name := M.Names[j];
-        val := M.Values[name];
-        ipos := Pos(name,S);
-        if ipos > 0 then
-        begin
-          S := Copy(S,1,ipos-1) + val + Copy(S,ipos + Length(name),MaxInt);
-          changed := True;
-        end;
-      end;
-      if changed then SqlText[i] := S;
-    end;
-  finally
-    M.Free;
-  end;
-end;
-
-function ConvertSqlText(const SybStyle: boolean; SqlText: TStringList): TStringList;
-  function StringReplaceIndexCol(mvalue,mparams,S: string): string;
-  var
-    iPos: integer;
-    mparams1,mparams2: string;
-  begin
-    iPos := Pos(',',mparams);
-    if iPos>0 then
-    begin
-      mparams1 := Copy(mparams,1,iPos-1);
-      mparams2 := Copy(mparams,iPos+1,MaxInt);
-      Result := StringReplace(mvalue,mparams1,Copy(S,1,Pos(',',S)-1),[rfReplaceAll]);
-      Result := StringReplace(Result,mparams2,Copy(S,Pos(',',S)+1,MaxInt),[rfReplaceAll]);
-    end
-    else
-      Result := StringReplace(mvalue,mparams,S,[rfReplaceAll]);
-  end;
-var
-  S,Si,macros,macrosf,mvalue, ind: string;
-  M: TStringList;
-  i,j,ipos, start, finish: integer;
-begin
-  ReplaceConstants(SqlText);
-
-  M := TStringList.Create;
-  try
-
-    if SybStyle then M.Text := SYB else M.Text := MS;
-    for i := 0 to M.Count-1 do
-    begin
-      ipos := Pos(' ',M[i]);
-      if ipos > 1 then
-      begin
-        macros := Copy(M[i],1,ipos-1); //M_P_ROWLOCK_INDEX(IND)
-        mvalue := Copy(M[i],ipos+1,MaxInt);
-
-        ipos := Pos('(',macros);
-        if ipos > 1 then
-        begin
-          macrosf := Copy(macros,1,ipos-1); //M_P_ROWLOCK_INDEX
-          ind := Copy(macros,ipos+1,MaxInt);
-          ipos:= Pos(')',ind);
-          ind := Copy(ind,1,ipos-1);
-        end
-        else
-        begin
-          macrosf := macros;
-          ind := '';
-        end;
-
-
-        for j := 0 to SqlText.Count - 1 do
-          if Pos(macrosf,SqlText[j]) > 0 then
-          begin
-            start := Pos(macrosf,SqlText[j]);
-
-            if start > 1 then
-              if SqlText[j][start-1] = '#' then
-                SqlText[j] := Copy(SqlText[j],1,start-2) + ' ' + Copy(SqlText[j],start,MaxInt);
-
-            S := Trim(Copy(SqlText[j],start + Length(macrosf),MaxInt)) + ' ';
-
-            if S[1] in ['(',' '] then
-            begin
-
-              if ind <> '' then
-              begin
-                finish := PosEx(')',SqlText[j],start+1);
-                Si := Copy(SqlText[j],PosEx('(',SqlText[j],start+1)+1,MaxInt);
-                ipos := Pos(')',Si);
-                Si := Copy(Si,1,ipos-1);
-              end
-              else
-              begin
-                finish := start + Length(macrosf);
-                Si := '';
-              end;
-
-              S := Copy(SqlText[j],1,start-1)
-                   + StringReplaceIndexCol(mvalue,ind,Si)
-                   + Copy(SqlText[j],finish+1,MaxInt);
-
-              SqlText[j] := S;
-
-            end;
-          end;
-
-        for j := SqlText.Count - 1 downto 0 do
-          if Trim(SqlText[j]) = '' then SqlText.Delete(j);
-
-      end;
-    end;
-    Result := SqlText;
-  finally
-    M.Free;
-  end;
-end;
+uses
+  {$IFNDEF NPPCONNECTIONS}diaConstUnit,{$ENDIF}
+  System.Math;
 
 procedure MoveStrings(StringSource,StringsTarget: TStringList);
 var S0: string;
@@ -392,7 +261,10 @@ begin
   Conn.Open(Conn.ConnectionString,'','',Integer(adConnectUnspecified));
   try
     PlanOnly := (Pos(cnstShowPlan,Sql[0])=1);
+
+    {$IFNDEF NPPCONNECTIONS}
     if FBdType in [bdMSSQL,bdSybase] then ConvertSqlText(FBdType=bdSybase,Sql);
+    {$ENDIF}
 
     FGrids        := TStringGrids.Create;
     FGrids.Name   := Name;
@@ -541,7 +413,7 @@ begin
         MoveStrings(Sql,Strings);
       end;
 
-      if FGrids.Count = 0 then  //Пустой результат
+      if FGrids.Count = 0 then  //Empty result
       begin
         if FThread.Terminated then Exit;
 
@@ -684,7 +556,9 @@ begin
   Conn.ConnectionString := FConnectionString;
   Conn.Open(Conn.ConnectionString,'','',Integer(adConnectUnspecified));
   try
+    {$IFNDEF NPPCONNECTIONS}
     if FBdType in [bdMSSQL,bdSybase] then ConvertSqlText(FBdType=bdSybase,Sql);
+    {$ENDIF}
 
     Strings := TStringList.Create;
     try

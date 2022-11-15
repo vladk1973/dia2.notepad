@@ -110,6 +110,7 @@ procedure TPgConversionThreadObject.Execute;
 var
   ConvertString: string;
 begin
+{$IFNDEF NPPCONNECTIONS}
   ConvertSourceFileToUniCode;
   ConvertString := TOptionsReg.GetPostgreSQLConvertString;
   Command := Format(ConvertString,[FDestinationFile]);
@@ -117,6 +118,7 @@ begin
 
   if IOUtils.TFile.Exists(FLogFile) then
     IOUtils.TFile.Copy(FLogFile, FDestinationFile, True);
+{$ENDIF}
 end;
 
 procedure TPgConversionThreadObject.SetDestinationFile(const Value: TFileName);

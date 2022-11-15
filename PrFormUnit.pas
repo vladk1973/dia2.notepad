@@ -8,6 +8,7 @@ uses
   Vcl.Dialogs, nppplugin, NppForms, System.Win.Registry,
   NppDockingForms, Vcl.StdCtrls, ConstUnit, Vcl.Clipbrd,
   Buttons, ExtCtrls, ActnList, Vcl.Menus, System.Actions,
+  {$IFNDEF NPPCONNECTIONS}diaConstUnit,{$ENDIF}
   CustomDialogUnit;
 
 type
