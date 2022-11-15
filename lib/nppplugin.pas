@@ -744,7 +744,6 @@ type
     procedure ClientWndProcSubView(var Message: TMessage);
 
   protected
-    PluginName: nppString;
     function GetNppVersion: Cardinal;
     function AddFuncItem(Name: nppString; Func: PFUNCPLUGINCMD): Integer; overload;
     function AddFuncItem(Name: nppString; Func: PFUNCPLUGINCMD; ShortcutKey: TShortcutKey): Integer; overload;
@@ -753,19 +752,27 @@ type
     procedure DoNppnToolbarModification; virtual;
 
   public
+    PluginName: nppString;
+
     NppData: TNppData;
     constructor Create;
     destructor Destroy; override;
     procedure BeforeDestruction; override;
 
-    function SelectedText: nppString;
-    function GetText: nppString;
+    function CurrentLine: LRESULT;
+    function CurrentPos: LRESULT;
+    function SelectedText: AnsiString;
+    function GetText: AnsiString;
     function GetTextLength: Integer;
     function GetLineCount: Integer;
+    function GetLine(const Line: Integer): AnsiString;
 
     function CmdIdFromDlgId(DlgId: Integer): Integer;
     function Sci_Send(Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT;
     function Npp_Send(Msg: UINT; wParam: WPARAM; lParam: LPARAM): LRESULT;
+
+    function GetTextRange(Range: TCharacterRange): AnsiString;
+    procedure FuncInsertText(const S: AnsiString);
 
     // needed for DLL export.. wrappers are in the main dll file.
     procedure SetInfo(NppData: TNppData); virtual;
@@ -775,7 +782,6 @@ type
     procedure MessageProc(var Msg: TMessage); virtual;
 
     // hooks
-    procedure DoNppnCode(code: NativeInt); virtual; abstract;
     procedure DoNppnShutdown; virtual;
     procedure DoNppnModified(sn: PSCNotification); virtual;
     procedure DoNppnFileOpened(sn: PSCNotification); virtual;
@@ -984,7 +990,6 @@ begin
     and (sn^.nmhdr.code = SCN_AUTOCSELECTION) then
       DoNppnUpdateAutoSelection(sn^.text);
 
-  {if (HWND(sn^.nmhdr.hwndFrom) = ScintillaHandle) then DoNppnCode(sn^.nmhdr.code);}
 end;
 
 procedure TNppPlugin.MessageProc(var Msg: TMessage);
@@ -1014,7 +1019,54 @@ begin
   Result := SendMessage(ScintillaHandle, Msg, wParam, lParam);
 end;
 
-function TNppPlugin.SelectedText: nppString;
+function TNppPlugin.GetLine(const Line: Integer): AnsiString;
+var
+  Size: Integer;
+  S: AnsiString;
+begin
+  Size := Sci_Send(SCI_LINELENGTH,WPARAM(Line),0);
+  if HasV5Apis then Inc(Size);
+  SetLength(S,Size);
+  try
+    Size :=Sci_Send(SCI_GETLINE,WPARAM(Line),LPARAM(PAnsiChar(S)));
+    Result := S;
+  finally
+    SetLength(S,0);
+  end;
+end;
+
+function TNppPlugin.GetTextRange(Range: TCharacterRange): AnsiString;
+var pt: PTextRange; //¬озвращает текст внутри переданного диапазона
+    Size,StartSize: NativeInt;
+    S: AnsiString;
+begin
+  StartSize := (Range.cpMax - Range.cpMin)+1;
+  GetMem(pt,SizeOf(TTextRange));
+  GetMem(pt^.lpstrText,StartSize);
+  try
+    pt^.chrg := Range;
+    Size :=Sci_Send(SCI_GETTEXTRANGEFULL,0,LPARAM(pt));
+    if HasV5Apis then Inc(Size);
+    SetLength(S,Size);
+    StrLCopy(PAnsiChar(S),pt^.lpstrText,Size);
+  finally
+    FreeMem(pt^.lpstrText,StartSize);
+    FreeMem(pt,SizeOf(TTextRange));
+    Result := S;
+  end;
+end;
+
+procedure TNppPlugin.FuncInsertText(const S: AnsiString);
+var
+  S1: AnsiString;
+  S2: AnsiString;
+begin
+  S1 := SelectedText;
+  S2 := UTF8Encode(Format(S,[S1]));
+  Sci_Send(SCI_REPLACESEL, 0, LPARAM(nppPChar(S2)));
+end;
+
+function TNppPlugin.SelectedText: AnsiString;
 var Size: NativeInt;
     S: AnsiString;
 begin
@@ -1024,7 +1076,7 @@ begin
   begin
     SetLength(S,Size);
     try
-      Sci_Send(SCI_GETSELTEXT, 0, LPARAM(PAnsiChar(S)));
+      Sci_Send(SCI_GETSELTEXT, 0, LPARAM(nppPChar(S)));
       if not HasV5Apis then
         SetLength(S,Size-1);
       Result := UTF8Decode(S);
@@ -1034,7 +1086,7 @@ begin
   end;
 end;
 
-function TNppPlugin.GetText: nppString;
+function TNppPlugin.GetText: AnsiString;
 var Size: NativeInt;
     S: AnsiString;
 begin
@@ -1052,6 +1104,19 @@ begin
       SetLength(S,0);
     end;
   end;
+end;
+
+function TNppPlugin.CurrentLine: LRESULT;
+var
+  iPos: Integer;
+begin
+  iPos := CurrentPos;
+  Result := Sci_Send(SCI_LINEFROMPOSITION, WPARAM(iPos), 0);
+end;
+
+function TNppPlugin.CurrentPos: LRESULT;
+begin
+  Result := Sci_Send(SCI_GETCURRENTPOS, 0, 0);
 end;
 
 function TNppPlugin.GetTextLength: Integer;
