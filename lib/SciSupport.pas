@@ -43,14 +43,25 @@ type
   end;
 
   TCharacterRange = Record
-    cpMin : NativeInt;
-	  cpMax : NativeInt;
+    cpMin : Integer;
+	  cpMax : Integer;
   end;
   PTextRange = ^TTextRange;
   TTextRange = Record
     chrg : TCharacterRange;
     lpstrText : LPSTR;
   end;
+
+  TCharacterRangeV5 = Record
+    cpMin : NativeInt;
+	  cpMax : NativeInt;
+  end;
+  PTextRangeV5 = ^TTextRangeV5;
+  TTextRangeV5 = Record
+    chrg : TCharacterRangeV5;
+    lpstrText : LPSTR;
+  end;
+
   PTextToFind = ^TTextToFind;
   TTextToFind  = Record
     chrg : TCharacterRange;

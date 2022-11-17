@@ -1037,23 +1037,50 @@ end;
 
 function TNppPlugin.GetTextRange(Range: TCharacterRange): AnsiString;
 var pt: PTextRange; //¬озвращает текст внутри переданного диапазона
+    pt5: PTextRangeV5;
     Size,StartSize: NativeInt;
     S: AnsiString;
 begin
   StartSize := (Range.cpMax - Range.cpMin)+1;
-  GetMem(pt,SizeOf(TTextRange));
-  GetMem(pt^.lpstrText,StartSize);
-  try
-    pt^.chrg := Range;
-    Size :=Sci_Send(SCI_GETTEXTRANGEFULL,0,LPARAM(pt));
-    if HasV5Apis then Inc(Size);
-    SetLength(S,Size);
-    StrLCopy(PAnsiChar(S),pt^.lpstrText,Size);
-  finally
-    FreeMem(pt^.lpstrText,StartSize);
-    FreeMem(pt,SizeOf(TTextRange));
-    Result := S;
+
+  if HasV5Apis then
+  begin
+    GetMem(pt5,SizeOf(TTextRangeV5));
+    GetMem(pt5^.lpstrText,StartSize);
+    try
+      pt5^.chrg.cpMin := Range.cpMin;
+      pt5^.chrg.cpMax := Range.cpMax;
+      Size :=Sci_Send(SCI_GETTEXTRANGEFULL,0,LPARAM(pt5));
+      Inc(Size);
+      if Size>0 then
+      begin
+        SetLength(S,Size);
+        StrLCopy(PAnsiChar(S),pt5^.lpstrText,Size);
+      end;
+    finally
+      FreeMem(pt5^.lpstrText,StartSize);
+      FreeMem(pt5,SizeOf(TTextRangeV5));
+    end;
+  end
+  else
+  begin
+    GetMem(pt,SizeOf(TTextRange));
+    GetMem(pt^.lpstrText,StartSize);
+    try
+      pt^.chrg := Range;
+      Size :=Sci_Send(SCI_GETTEXTRANGE,0,LPARAM(pt));
+      if Size>0 then
+      begin
+        SetLength(S,Size);
+        StrLCopy(PAnsiChar(S),pt^.lpstrText,Size);
+      end;
+    finally
+      FreeMem(pt^.lpstrText,StartSize);
+      FreeMem(pt,SizeOf(TTextRange));
+    end;
   end;
+
+  Result := S;
 end;
 
 procedure TNppPlugin.FuncInsertText(const S: AnsiString);
