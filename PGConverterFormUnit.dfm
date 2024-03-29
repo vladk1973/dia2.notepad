@@ -1,9 +1,9 @@
-inherited PrForm: TPrForm
+inherited PGConverterForm: TPGConverterForm
   Left = 654
   Top = 194
   ActiveControl = OkBtn
-  Caption = #1055#1088#1086#1083#1080#1074#1082#1072
-  ClientHeight = 151
+  Caption = #1050#1086#1085#1074#1077#1088#1090#1072#1094#1080#1103' '#1074' PostgreSQL'
+  ClientHeight = 117
   ClientWidth = 443
   Color = clWindow
   KeyPreview = True
@@ -12,36 +12,29 @@ inherited PrForm: TPrForm
   OnDestroy = FormDestroy
   OnKeyDown = FormKeyDown
   ExplicitWidth = 449
-  ExplicitHeight = 180
+  ExplicitHeight = 146
   PixelsPerInch = 96
   TextHeight = 13
   object Label1: TLabel [0]
     Left = 17
-    Top = 39
-    Width = 96
-    Height = 13
-    Caption = #1050#1086#1084#1072#1085#1076#1072' '#1087#1088#1086#1083#1080#1074#1082#1080
-  end
-  object Label2: TLabel [1]
-    Left = 17
     Top = 75
-    Width = 79
+    Width = 98
     Height = 13
-    Caption = #1051#1086#1075#1080#1085' '#1080' '#1087#1072#1088#1086#1083#1100
+    Caption = #1047#1072#1087#1091#1089#1082' '#1082#1086#1085#1074#1077#1088#1090#1077#1088#1072
   end
-  object Label3: TLabel [2]
+  object Label3: TLabel [1]
     Left = 17
-    Top = 111
-    Width = 83
+    Top = 39
+    Width = 72
     Height = 13
-    Caption = #1055#1072#1087#1082#1072' '#1087#1088#1086#1083#1080#1074#1082#1080
+    Caption = #1050#1086#1087#1080#1088#1086#1074#1072#1090#1100' '#1074' '
   end
-  object HistorySpeedButton: TSpeedButton [3]
+  object HistorySpeedButton: TSpeedButton [2]
     Left = 410
-    Top = 108
+    Top = 36
     Width = 27
     Height = 21
-    Hint = #1048#1089#1090#1086#1088#1080#1103' '#1087#1072#1087#1086#1082' '#1087#1088#1086#1083#1080#1074#1082#1080
+    Hint = #1048#1089#1090#1086#1088#1080#1103' '#1087#1072#1087#1086#1082' '#1082#1086#1087#1080#1088#1086#1074#1072#1085#1080#1103
     Flat = True
     Glyph.Data = {
       36030000424D3603000000000000360000002800000010000000100000000100
@@ -74,9 +67,9 @@ inherited PrForm: TPrForm
     ShowHint = True
     OnClick = HistorySpeedButtonClick
   end
-  object SpeedButton1: TSpeedButton [4]
+  object SpeedButton1: TSpeedButton [3]
     Left = 109
-    Top = 108
+    Top = 36
     Width = 21
     Height = 21
     Hint = #1042#1099#1073#1088#1072#1090#1100' '#1087#1072#1087#1082#1091
@@ -144,75 +137,56 @@ inherited PrForm: TPrForm
   end
   inherited TopPanel: TPanel
     Width = 443
-    TabOrder = 6
+    TabOrder = 5
     ExplicitWidth = 443
   end
   inherited OkPanel: TPanel
     Left = 253
-    Top = 119
-    TabOrder = 2
+    Top = 81
     ExplicitLeft = 253
-    ExplicitTop = 119
+    ExplicitTop = 81
   end
   inherited CancelPanel: TPanel
     Left = 334
-    Top = 119
-    TabOrder = 3
+    Top = 81
     ExplicitLeft = 334
-    ExplicitTop = 119
+    ExplicitTop = 81
   end
   inherited CancelBtn: TBitBtn
     Left = 334
-    Top = 142
-    TabOrder = 4
+    Top = 104
     ExplicitLeft = 334
-    ExplicitTop = 142
+    ExplicitTop = 104
   end
   inherited OkBtn: TBitBtn
     Left = 253
-    Top = 142
-    TabOrder = 5
+    Top = 104
     OnClick = OkBtnClick
     ExplicitLeft = 253
-    ExplicitTop = 142
+    ExplicitTop = 104
   end
-  object Password: TEdit
+  object cmdEdit: TEdit
     Left = 133
     Top = 72
     Width = 277
     Height = 21
-    BevelEdges = []
-    BevelInner = bvNone
-    BevelOuter = bvNone
-    Color = clWhite
-    ParentShowHint = False
-    ShowHint = True
-    TabOrder = 0
-    StyleElements = []
-    OnChange = PasswordChange
-  end
-  object cmdEdit: TEdit
-    Left = 133
-    Top = 36
-    Width = 277
-    Height = 21
+    Hint = #1050#1086#1084#1072#1085#1076#1085#1099#1081' '#1092#1072#1081#1083', '#1079#1072#1087#1091#1089#1082#1072#1102#1097#1080#1081' '#1082#1086#1085#1074#1077#1088#1090#1072#1094#1080#1102
     TabStop = False
     BevelEdges = []
     BevelInner = bvNone
     BevelOuter = bvNone
     Color = clWhite
     ParentShowHint = False
-    ReadOnly = True
     ShowHint = True
-    TabOrder = 7
+    TabOrder = 6
     StyleElements = []
-    OnChange = PasswordChange
   end
   object PathEdit: TEdit
     Left = 133
-    Top = 108
+    Top = 36
     Width = 277
     Height = 21
+    Hint = #1055#1072#1087#1082#1072' '#1089' '#1080#1089#1093#1086#1076#1085#1099#1084' '#1082#1086#1076#1086#1084', '#1087#1088#1077#1076#1085#1072#1079#1085#1072#1095#1077#1085#1085#1072#1103' '#1076#1083#1103' '#1082#1086#1085#1074#1077#1088#1090#1072#1094#1080#1080
     BevelEdges = []
     BevelInner = bvNone
     BevelOuter = bvNone
@@ -220,7 +194,7 @@ inherited PrForm: TPrForm
     ParentShowHint = False
     PopupMenu = PopupMenu1
     ShowHint = True
-    TabOrder = 1
+    TabOrder = 0
     StyleElements = []
   end
   object PopupMenu1: TPopupMenu

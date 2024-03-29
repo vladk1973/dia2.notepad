@@ -38,6 +38,19 @@ type
     property DestinationFile: TFileName read FDestinationFile write SetDestinationFile;
   end;
 
+  TPgnativeThreadObject = class(TPrThreadObject)
+  private
+    FSourcePath: TFileName;
+    FSourceFile: TFileName;
+    procedure SetSourcePath(const Value: TFileName);
+    procedure SetSourceFile(const Value: TFileName);
+  protected
+    procedure Execute; override;
+  public
+    property SourcePath: TFileName read FSourcePath write SetSourcePath;
+    property SourceFile: TFileName read FSourceFile write SetSourceFile;
+  end;
+
 implementation
 
 uses SqlPPConsoleUnit, regUnit;
@@ -129,6 +142,32 @@ end;
 procedure TPgConversionThreadObject.SetSourceFile(const Value: TFileName);
 begin
   FSourceFile := Value;
+end;
+
+{ TPgnativeThreadObject }
+
+procedure TPgnativeThreadObject.Execute;
+begin
+{$IFNDEF NPPCONNECTIONS}
+{  Command := FPgForm.Cmd;
+  FSourceFile := FPgForm.FileName;
+  FSourcePath := FPgForm.Path;
+
+  inherited;
+
+  if IOUtils.TFile.Exists(FLogFile) then
+    IOUtils.TFile.Copy(FLogFile, FDestinationFile, True);}
+{$ENDIF}
+end;
+
+procedure TPgnativeThreadObject.SetSourceFile(const Value: TFileName);
+begin
+  FSourceFile := Value;
+end;
+
+procedure TPgnativeThreadObject.SetSourcePath(const Value: TFileName);
+begin
+  FSourcePath := Value;
 end;
 
 end.

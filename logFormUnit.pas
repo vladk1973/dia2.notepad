@@ -221,6 +221,7 @@ type
 
    {$IFNDEF NPPCONNECTIONS}
     procedure DoPrForm;
+    procedure DoPgConverterForm;
    {$ENDIF}
 
     procedure DoHelpSql(help: THelpType; const SqlText: string);
@@ -240,6 +241,7 @@ uses
   regUnit,
   {$IFNDEF NPPCONNECTIONS}
   LogWriterUnit,diaConstUnit,PrFormUnit,CommandThreadUnit,
+  PgConverterFormUnit,
   {$ENDIF}
   LogFormHelpersUnit
   ;
@@ -258,13 +260,36 @@ begin
 end;
 
 {$IFNDEF NPPCONNECTIONS}
+procedure TlogForm.DoPgConverterForm;
+var
+  FPgForm: TPGConverterForm;
+  CmdThread: TPrThreadObject;
+begin
+  FPgForm := TPGConverterForm.Create(self);
+  try
+    if FPgForm.DoForm = mrOk then
+    begin
+      CmdThread := TPgnativeThreadObject.Create;
+      CmdThread.Description := FPgForm.FileName;
+      CmdThread.Command := FPgForm.Cmd;
+      CmdThread.DestinationPath := FPgForm.Path;
+//      CmdThread.OnAfterAction := AfterPgConvertAction;
+      CmdThread.WinHandle := self.Handle;
+      CmdThread.Start;
+    end;
+  finally
+    FPgForm.Free;
+    FPgForm := nil;
+  end;
+end;
+
 procedure TlogForm.DoPrForm;
 var
   FPrForm: TPrForm;
   CmdThread: TPrThreadObject;
 begin
 
-  if not (BasesPanel.BdType in [bdMSSQL,bdSybase]) then
+  if BasesPanel.BdType = bdODBC then
   begin
     MessageError(cnstNoSQLSelected,cnstErroCaption);
     Exit;
@@ -279,6 +304,8 @@ begin
   try
     FPrForm.ExternalServer := BasesPanel.CurrentServer;
     FPrForm.ExternalBase   := BasesPanel.CurrentBase;
+    FPrForm.ExternalPort   := BasesPanel.CurrentPort;
+
     FPrForm.InitConnectionString;
     if FPrForm.DoForm = mrOk then
     begin
@@ -1230,7 +1257,10 @@ end;
 
 function TlogForm.IsErrorString(const S: string): boolean;
 begin
-  Result := (S.IndexOf('Msg ')=0) or (S.IndexOf('Сообщение ')=0);
+  Result := (S.IndexOf('Msg ')=0) or
+            (S.IndexOf('Сообщение ')=0) or
+            (S.IndexOf('ERROR: ')=0) or
+            (S.IndexOf('ОШИБКА: ')=0);
 end;
 
 procedure TlogForm.LogBoxDblClick(Sender: TObject);
@@ -1286,17 +1316,26 @@ procedure TlogForm.LogBoxDblClick(Sender: TObject);
     end;
   end;
 
-var ItemNo: Integer;
-    ProcName: string;
+var ItemNo,ItemNoNext: Integer;
+    ProcName, S: string;
     Index,LineNumber: integer;
     Strings: TStrings;
 begin
   ItemNo := LogBox.ItemIndex;
+  ItemNoNext := ItemNo + 1;
   if (ItemNo >= 0) and IsErrorString(LogBox.Items[ItemNo]) then
   begin
     if (FSubFile <> '') and FileExists(FSubFile) then
     begin
-      GetProcNameAndErrorLine(LogBox.Items[ItemNo],ProcName,LineNumber);
+      S := LogBox.Items[ItemNo];
+      if ItemNoNext < LogBox.Items.Count then
+      begin
+        Index := Pos(':',LogBox.Items[ItemNoNext]);
+        if (Index > 1) and LogBox.Items[ItemNoNext].StartsWith('LINE') then
+          S := S + ',' + LogBox.Items[ItemNoNext].Substring(0,Index-1);
+      end;
+
+      GetProcNameAndErrorLine(S,ProcName,LineNumber);
       Index := 0;
       if ProcName <> '' then
       begin
@@ -1305,7 +1344,7 @@ begin
           Strings.LoadFromFile(FSubFile);
           Index := Strings.IndexOf(cnstBeginProcArray[0] + ProcName);
           if Index < 0 then Index := Strings.IndexOf(cnstBeginProcArray[1] + ProcName);
-          Inc(Index);
+          //Inc(Index);
         finally
           Strings.Free;
         end;

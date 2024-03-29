@@ -17,7 +17,10 @@ const
   cnstConvert = 'curl --location --request POST "http://postgrefagl:8089/v1/batch" --header "Content-Type: application/octet-stream" --data-binary @"%s"';
   cnstT01 = '.t01';
   cnstPrFormKey = 'PrForm';
+  cnstPgFormKey = 'PGConvertForm';
   cnstPrHistKey = 'PrPathHistory';
+  cnstPgHistKey = 'PgPathHistory';
+  cnstPgCmd = 'local-build.all.product.cmd';
   cnstBSL_B = 'M_BUSINESSLOG_BEGIN';
   cnstBSBL_B = 'M_BUSINESSLOG_BLOCK_BEGIN(''%s'')'#13#10'M_BUSINESSLOG_BLOCK_END(''%0:s'')';
   cnstBSBL_E = 'M_BUSINESSLOG_BLOCK_END(''%s'')';
@@ -214,6 +217,7 @@ const
   'var_HostName DSCOMMENT;                                                   '+sLineBreak+
   'var_RetVal DSINT_KEY;                                                     '+sLineBreak+
   'var_tempSelect record;                                                    '+sLineBreak+
+  'var___sys_rowcount bigint := 0;                                           '+sLineBreak+
   'var_ImplicitCallerRetVal int;                                             '+sLineBreak+
   'var_ImplicitResultSet refcursor := ''var_implicitresultset'';             '+sLineBreak+
   '                                                                          '+sLineBreak+
@@ -221,19 +225,22 @@ const
   'SELECT coalesce(0, 0)                                                     '+sLineBreak+
   '  INTO var_UserID LIMIT 1;                                                '+sLineBreak+
   'IF var_UserID = 0 THEN                                                    '+sLineBreak+
-  'SELECT UserID                                                             '+sLineBreak+
-  '  INTO var_tempSelect                                                     '+sLineBreak+
-  '  FROM tUser                                                              '+sLineBreak+
-  ' WHERE lower(Brief) = lower(CAST(suser_sname() AS char (30))) LIMIT 1;    '+sLineBreak+
-  'IF found THEN                                                             '+sLineBreak+
-  'var_UserID := var_tempSelect.UserID;                                      '+sLineBreak+
-  'END IF;                                                                   '+sLineBreak+
+  '  SELECT /*+ IndexScan(tuser tuser_xak0tuser) */                          '+sLineBreak+
+  '         UserID                                                           '+sLineBreak+
+  '    INTO var_tempSelect                                                   '+sLineBreak+
+  '    FROM tUser                                                            '+sLineBreak+
+  '   WHERE lower(Brief)::dsusername = lower(CAST(suser_sname() AS char (30))) LIMIT 1;'+sLineBreak+
+  '  IF found THEN                                                           '+sLineBreak+
+  '    var_UserID := var_tempSelect.UserID;                                  '+sLineBreak+
+  '  END IF;                                                                 '+sLineBreak+
+  '  GET DIAGNOSTICS var___sys_rowcount = ROW_COUNT;                         '+sLineBreak+
   'END IF;                                                                   '+sLineBreak+
   'SELECT host_name()::DSCOMMENT,                                            '+sLineBreak+
   '       0                                                                  '+sLineBreak+
   '  INTO var_HostName,                                                      '+sLineBreak+
   '       var_RetVal;                                                        '+sLineBreak+
   '                                                                          '+sLineBreak+
+  'CALL tran_count_inc();                                                    '+sLineBreak+
   '                                                                          '+sLineBreak+
   'WHILE var_HostName <> '''' AND var_RetVal = 0 LOOP                        '+sLineBreak+
   'CALL FCD_10_Log_Delete(                                                   '+sLineBreak+
@@ -253,12 +260,27 @@ const
   'IF found THEN                                                             '+sLineBreak+
   'var_HostName := var_tempSelect.HostName;                                  '+sLineBreak+
   'END IF;                                                                   '+sLineBreak+
+  'GET DIAGNOSTICS var___sys_rowcount = ROW_COUNT;                           '+sLineBreak+
   '                                                                          '+sLineBreak+
   'END LOOP;                                                                 '+sLineBreak+
-  'open var_ImplicitResultSet FOR SELECT coalesce(var_RetVal, 0) AS "Error"; '+sLineBreak+
+  '                                                                          '+sLineBreak+
+  'CALL tran_count_dec();                                                    '+sLineBreak+
+  '                                                                          '+sLineBreak+
+  '  IF NOT EXISTS(SELECT 1   FROM pg_cursors  WHERE name = ''var_implicitresultset'') THEN '+sLineBreak+
+  '    open var_ImplicitResultSet FOR                                        '+sLineBreak+
+  '    SELECT coalesce(var_RetVal, 0) AS "Error";                            '+sLineBreak+
+  '  END IF;                                                                 '+sLineBreak+
+  '  IF NOT EXISTS(    SELECT 1                                              '+sLineBreak+
+  '      FROM pg_cursors                                                     '+sLineBreak+
+  '     WHERE name = ''var_implicitresultset'') THEN                         '+sLineBreak+
+  '    open var_ImplicitResultSet FOR                                        '+sLineBreak+
+  '    SELECT 0 AS "ResultSetNotFound"                                       '+sLineBreak+
+  '     WHERE 0 = 1;                                                         '+sLineBreak+
+  '  END IF;                                                                 '+sLineBreak+
   'END                                                                       '+sLineBreak+
   '$$;                                                                       '+sLineBreak+
-  'fetch all from var_implicitresultset;                                     ';
+  'fetch all from var_implicitresultset;                                     '+sLineBreak+
+  'close var_implicitresultset;                                              '+sLineBreak;
 
   constSQL_RTI_PostgreSQL =
   'do $$                                                          '+sLineBreak+
@@ -268,6 +290,8 @@ const
   'var_ImplicitResultSet refcursor := ''var_implicitresultset'';  '+sLineBreak+
   '                                                               '+sLineBreak+
   'BEGIN                                                          '+sLineBreak+
+  'CALL tran_count_inc();                                         '+sLineBreak+
+  '                                                               '+sLineBreak+
   'SELECT host_name()::DSCOMMENT INTO var_HostName;               '+sLineBreak+
   'CALL FCD_10_Log_SaveOption(                                    '+sLineBreak+
   '       var_ImplicitCallerRetVal,                               '+sLineBreak+
@@ -298,10 +322,23 @@ const
   '       var_AServerObjectListID => '''',                        '+sLineBreak+
   '       var_ATrace => 0                                         '+sLineBreak+
   ');                                                             '+sLineBreak+
-  'open var_ImplicitResultSet FOR SELECT coalesce(var_ImplicitCallerRetVal, 0) AS "Error";'+sLineBreak+
+  '  IF NOT EXISTS(SELECT 1   FROM pg_cursors  WHERE name = ''var_implicitresultset'') THEN'+sLineBreak+
+  '    open var_ImplicitResultSet FOR                             '+sLineBreak+
+  '    SELECT 0;                                                  '+sLineBreak+
+  '  END IF;                                                      '+sLineBreak+
+  '  IF NOT EXISTS(    SELECT 1                                   '+sLineBreak+
+  '      FROM pg_cursors                                          '+sLineBreak+
+  '     WHERE name = ''var_implicitresultset'') THEN              '+sLineBreak+
+  '    open var_ImplicitResultSet FOR                             '+sLineBreak+
+  '    SELECT 0 AS "ResultSetNotFound"                            '+sLineBreak+
+  '     WHERE 0 = 1;                                              '+sLineBreak+
+  '  END IF;                                                      '+sLineBreak+
+  '                                                               '+sLineBreak+
+  'CALL tran_count_dec();                                         '+sLineBreak+
   'END                                                            '+sLineBreak+
   '$$;                                                            '+sLineBreak+
-  'fetch all from var_implicitresultset;                          ';
+  'fetch all from var_implicitresultset;                          '+sLineBreak+
+  'close var_implicitresultset;                                   '+sLineBreak;
 
   constSQL_RTI =
                 'declare @Brief DSUSERNAME,                  '#13#10+
@@ -314,11 +351,6 @@ const
                 'select @UserID = UserID                     '#13#10+
                 '  from tUser where Brief = @Brief           '#13#10+
                 '                                            '#13#10+
-//                'exec User_Update                            '#13#10+
-//                '  @UserID  = @UserID,                       '#13#10+
-//                '  @Brief   = @Brief,                        '#13#10+
-//                '  @MakeRTI = %d                             '#13#10+
-//                '                                            '#13#10+
                 'exec FCD_10_Log_SaveOption                  '#13#10+
                 '        @UserID              = @UserID,     '#13#10+
                 '        @HostName            = @HostName,   '#13#10+
@@ -350,28 +382,41 @@ const
 
 
   constSQL_RTI_Clear =
-                'declare @UserID   DSIDENTIFIER,          '#13#10+
-                '        @Brief    DSUSERNAME  ,          '#13#10+
-                '        @HostName DSCOMMENT   ,          '#13#10+
-                '        @RetVal   int                    '#13#10+
-                '                                         '#13#10+
-                'select @Brief = ''%s'',                  '#13#10+
-                '       @HostName = host_name(),          '#13#10+
-                '       @RetVal   = 0                     '#13#10+
-                '                                         '#13#10+
-                'set rowcount 1                           '#13#10+
-                '                                         '#13#10+
-                'select @UserID = UserID                  '#13#10+
-                '  from tUser where Brief = @Brief        '#13#10+
-                '                                         '#13#10+
-                'set rowcount 0                           '#13#10+
-                '                                         '#13#10+
-                'exec @RetVal = FCD_10_Log_Delete         '#13#10+
-                '                  @Mode     = 0        , '#13#10+
-                '                  @UserID   = @UserID  , '#13#10+
-                '                  @HostName = @HostName  '#13#10+
-                '                                         '#13#10+
-                'select @RetVal, ''%s'' as Db';
+  'declare @UserID   DSIDENTIFIER,                     '#13#10+
+  '        @HostName DSCOMMENT,                        '#13#10+
+  '        @RetVal   DSINT_KEY                         '#13#10+
+  '                                                    '#13#10+
+  'set rowcount 1                                      '#13#10+
+  '                                                    '#13#10+
+  'select @UserID = isnull(0, 0)                       '#13#10+
+  'if @UserID = 0                                      '#13#10+
+  '  select @UserID = UserID                           '#13#10+
+  '    from tUser M_NOLOCK_INDEX(XAK0tUser)            '#13#10+
+  '   where Brief = convert(char(30),suser_sname())    '#13#10+
+  '                                                    '#13#10+
+  '                                                    '#13#10+
+  'set rowcount 0                                      '#13#10+
+  '                                                    '#13#10+
+  'select @HostName = host_name(),                     '#13#10+
+  '       @RetVal   = 0                                '#13#10+
+  '                                                    '#13#10+
+  'while @HostName <> '''' and @RetVal = 0             '#13#10+
+  'begin                                               '#13#10+
+  '  exec @RetVal = FCD_10_Log_Delete                  '#13#10+
+  '                   @Mode     = 0,                   '#13#10+
+  '                   @UserID   = @UserID,             '#13#10+
+  '                   @HostName = @HostName            '#13#10+
+  '                                                    '#13#10+
+  '  set rowcount 1                                    '#13#10+
+  '  select @HostName = ''''                           '#13#10+
+  '  select @HostName = HostName                       '#13#10+
+  '    from tLogMessage M_NOLOCK_INDEX(XAK2tLogMessage)'#13#10+
+  '   where UserID = @UserID                           '#13#10+
+  '                                                    '#13#10+
+  '  set rowcount 0                                    '#13#10+
+  'end                                                 '#13#10+
+  '                                                    '#13#10+
+  'select isnull(@RetVal, 0) as Error, ''%s'' as Db    ';
 
 
 //procedure TWatchCore_T.OpenLogMessages(SaveToFileName: string);
@@ -415,6 +460,7 @@ const
   cnstFileCopyError = 'Не удалось скопировать файл в %s';
   cnstFileCopyErrorCaption = 'Ошибка копирования файла';
   cnstPrClearMenuItemCaption = 'Очистить историю папок проливки';
+  cnstPgClearMenuItemCaption = 'Очистить историю папок копирования';
   cnstRecordConfirmation = 'Начать протоколирование на базе %s?';
 
   cnstRecordConfirmRewriteExistingFile = 'Файл с именем "%s" существует. Перезаписать?';

@@ -39,6 +39,7 @@ type
     function CurrentBase: string;
     function CurrentUser: string;
     function CurrentServer: string;
+    function CurrentPort: string;
     function ConnectionString: string;
     function BdType: TBdType;
   end;
@@ -163,6 +164,30 @@ begin
   begin
     if Assigned(Node.Parent) then Node := Node.Parent;
     Result := Node.Text;
+  end;
+end;
+
+function TSplitViewHelper.CurrentPort: string;
+var
+  Node: TTreeNode;
+  Strings: TStringList;
+begin
+  Result := '';
+  Node := Self.CurrentNode;
+  if Assigned(Node) then
+  begin
+    if Assigned(Node.Parent) then Node := Node.Parent;
+    if Node.ItemType in [itServerPostgreSQL] then
+    begin
+      Strings := TStringList.Create;
+      try
+        Strings.Delimiter := '|';
+        Strings.DelimitedText := TTreeNodeEx(Node).DataSource;
+        Result := Strings.Values['Port'];
+      finally
+        Strings.Free;
+      end;
+    end;
   end;
 end;
 

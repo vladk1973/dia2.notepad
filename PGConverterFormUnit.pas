@@ -1,4 +1,4 @@
-unit PrFormUnit;
+unit PGConverterFormUnit;
 
 interface
 
@@ -12,23 +12,20 @@ uses
   CustomDialogUnit;
 
 type
-  TPrForm = class(TCustomDialogForm)
+  TPGConverterForm = class(TCustomDialogForm)
     PopupMenu1: TPopupMenu;
     N1: TMenuItem;
     N2: TMenuItem;
     N3: TMenuItem;
     N4: TMenuItem;
     HistoryPopupMenu: TPopupMenu;
-    Password: TEdit;
     cmdEdit: TEdit;
     Label1: TLabel;
-    Label2: TLabel;
     Label3: TLabel;
     HistorySpeedButton: TSpeedButton;
     SpeedButton1: TSpeedButton;
     PathEdit: TEdit;
     procedure FormCreate(Sender: TObject);
-    procedure PasswordChange(Sender: TObject);
     procedure SpeedButton1Click(Sender: TObject);
     procedure OkBtnClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -36,11 +33,8 @@ type
     procedure HistorySpeedButtonClick(Sender: TObject);
   private
     FPathHistory: TStringList;
-    FExternalServer: String;
-    FExternalBase: String;
     FPath: String;
-    FÑonnectString: String;
-    FExternalPort: String;
+    FÑommandString: String;
     function GetFileName: String;
     function GetTargetPath: TPathName;
     function GetFullFileName: String;
@@ -48,8 +42,7 @@ type
     procedure RestoreSettings;
     procedure SetExternalServer(const Value: String);
     procedure SetExternalBase(const Value: String);
-    function GetConnectString: String;
-    procedure SetExternalPort(const Value: String);
+    function GetCmd: String;
   protected
     procedure OnClickHistoryPopupMenu(Sender: TObject);
     procedure OnClearHistoryPopupMenu(Sender: TObject);
@@ -58,14 +51,9 @@ type
     property FullFileName: String read GetFullFileName;
   public
     function DoForm: TModalResult; override;
-    procedure InitConnectionString;
     property FileName: String read GetFileName;
-    property ConnectString: String read GetConnectString;
+    property Cmd: String read GetCmd;
     property Path: String read FPath;
-
-    property ExternalServer: String read FExternalServer write SetExternalServer;
-    property ExternalPort: String read FExternalPort write SetExternalPort;
-    property ExternalBase: String read FExternalBase write SetExternalBase;
   end;
 
 implementation
@@ -74,57 +62,38 @@ uses GetFolderDialogUnit;
 
 {$R *.dfm}
 
-procedure TPrForm.FormCreate(Sender: TObject);
+procedure TPGConverterForm.FormCreate(Sender: TObject);
 begin
   inherited;
   FPathHistory := TStringList.Create;
 end;
 
-function TPrForm.GetConnectString: String;
+function TPGConverterForm.GetCmd: String;
 begin
-  Result := FÑonnectString;
+  Result := cmdEdit.Text;
 end;
 
-function TPrForm.GetFileName: String;
+function TPGConverterForm.GetFileName: String;
 begin
   Npp.GetFileName(Result);
 end;
 
-function TPrForm.GetFullFileName: String;
+function TPGConverterForm.GetFullFileName: String;
 begin
   Npp.GetFullFileName(Result);
 end;
 
-procedure TPrForm.InitConnectionString;
-begin
-  if Password.Text = '' then Password.Text := 'dca 123456';
-  FÑonnectString := ChangeFileExt(FileName,'');
-  FÑonnectString := FÑonnectString + ' ' + FExternalServer;
-  if FExternalPort <> '' then {Äëÿ PostgreSQL}
-    FÑonnectString := FÑonnectString + ':' + FExternalPort;
-
-  FÑonnectString := FÑonnectString + ' ' + FExternalBase;
-  FÑonnectString := Trim(FÑonnectString + ' ' + Password.Text);
-  cmdEdit.Text := '..\serv ' + FÑonnectString;
-end;
-
-procedure TPrForm.PasswordChange(Sender: TObject);
-begin
-  inherited;
-  InitConnectionString;
-end;
-
-procedure TPrForm.SpeedButton1Click(Sender: TObject);
+procedure TPGConverterForm.SpeedButton1Click(Sender: TObject);
 var sFolder: String;
 begin
   sFolder:= 'c:\';
-  if GetFolderDialog(Application.Handle, Label3.Caption, sFolder) then
+  if GetFolderDialog(Application.Handle, PathEdit.Hint, sFolder) then
   begin
     PathEdit.Text := sFolder;
   end;
 end;
 
-procedure TPrForm.OkBtnClick(Sender: TObject);
+procedure TPGConverterForm.OkBtnClick(Sender: TObject);
   function CopyFileTo(const Source,Target: TPathName): boolean;
   begin
     Result := True;
@@ -160,12 +129,12 @@ begin
   ModalResult := cnstModalResultArray[Succ];
 end;
 
-function TPrForm.GetTargetPath: TPathName;
+function TPGConverterForm.GetTargetPath: TPathName;
 begin
   Result := PathEdit.Text;
 end;
 
-procedure TPrForm.HistorySpeedButtonClick(Sender: TObject);
+procedure TPGConverterForm.HistorySpeedButtonClick(Sender: TObject);
 var aPoint: TPoint;
     i: integer;
     NewItem: TMenuItem;
@@ -188,7 +157,7 @@ begin
     HistoryPopupMenu.Items.Add(NewItem);
 
     NewItem := TMenuItem.Create(Self);
-    NewItem.Caption := cnstPrClearMenuItemCaption;
+    NewItem.Caption := cnstPgClearMenuItemCaption;
     NewItem.OnClick := OnClearHistoryPopupMenu;
     HistoryPopupMenu.Items.Add(NewItem);
 
@@ -198,25 +167,23 @@ begin
   HistoryPopupMenu.Popup(aPoint.X,aPoint.Y);
 end;
 
-procedure TPrForm.ChangeColorMode(Sender: TObject);
+procedure TPGConverterForm.ChangeColorMode(Sender: TObject);
 begin
   inherited;
   if DarkMode then
   begin
-    Password.BorderStyle := bsNone;
     cmdEdit.BorderStyle := bsNone;
     PathEdit.BorderStyle := bsNone;
   end;
 end;
 
-function TPrForm.DoForm: TModalResult;
+function TPGConverterForm.DoForm: TModalResult;
 begin
   RestoreSettings;
-  InitConnectionString;
   Result := inherited DoForm;
 end;
 
-procedure TPrForm.SaveSettings;
+procedure TPGConverterForm.SaveSettings;
 var Registry: TRegistry;
     i: integer;
     S: TPathName;
@@ -228,20 +195,19 @@ begin
 
     if not Registry.KeyExists(cnstDllKey) then Registry.CreateKey(cnstDllKey);
 
-    if Registry.OpenKey(cnstDllKey + '\' + cnstPrFormKey, True) then
+    if Registry.OpenKey(cnstDllKey + '\' + cnstPgFormKey, True) then
     begin
-      Registry.WriteString('Password',Trim(Password.Text));
       Registry.WriteString('PathMemo',Trim(PathEdit.Text));
+      Registry.WriteString('cmdEdit',Trim(cmdEdit.Text));
       Registry.CloseKey;
     end;
-
 
     S := Trim(PathEdit.Text);
     if (S<>'') and (FPathHistory.IndexOf(S)<0) then FPathHistory.Add(S);
     if FPathHistory.Count = 0 then
-      Registry.DeleteKey(cnstDllKey + '\' + cnstPrHistKey)
+      Registry.DeleteKey(cnstDllKey + '\' + cnstPgHistKey)
     else
-      if Registry.OpenKey(cnstDllKey + '\' + cnstPrHistKey, True) then
+      if Registry.OpenKey(cnstDllKey + '\' + cnstPgHistKey, True) then
       begin
         for i := 0 to FPathHistory.Count - 1 do
           Registry.WriteString('Item' + IntToStr(i),FPathHistory[i]);
@@ -253,7 +219,17 @@ begin
   end;
 end;
 
-procedure TPrForm.RestoreSettings;
+procedure TPGConverterForm.SetExternalBase(const Value: String);
+begin
+
+end;
+
+procedure TPGConverterForm.SetExternalServer(const Value: String);
+begin
+
+end;
+
+procedure TPGConverterForm.RestoreSettings;
 var Registry: TRegistry;
     Server,Base: String;
     i: integer;
@@ -262,14 +238,14 @@ begin
   try
     Registry.RootKey := HKEY_CURRENT_USER;
 
-    if Registry.OpenKey(cnstDllKey + '\' + cnstPrFormKey, False) then
+    if Registry.OpenKey(cnstDllKey + '\' + cnstPgFormKey, False) then
     begin
-      Password.Text := Registry.ReadString('Password');
       PathEdit.Text := Registry.ReadString('PathMemo');
+      cmdEdit.Text := Registry.ReadString('cmdEdit');
       Registry.CloseKey;
     end;
 
-    if Registry.OpenKey(cnstDllKey + '\' + cnstPrHistKey, False) then
+    if Registry.OpenKey(cnstDllKey + '\' + cnstPgHistKey, False) then
     begin
       Registry.GetValueNames(FPathHistory);
       for i := 0 to FPathHistory.Count - 1 do
@@ -277,30 +253,32 @@ begin
       Registry.CloseKey;
     end;
 
+    if cmdEdit.Text = '' then cmdEdit.Text := cnstPgCmd;
+
   finally
     Registry.Free;
   end;
 end;
 
-procedure TPrForm.FormDestroy(Sender: TObject);
+procedure TPGConverterForm.FormDestroy(Sender: TObject);
 begin
   inherited;
   FPathHistory.Free;
 end;
 
-procedure TPrForm.FormKeyDown(Sender: TObject; var Key: Word;
+procedure TPGConverterForm.FormKeyDown(Sender: TObject; var Key: Word;
   Shift: TShiftState);
 begin
   if Key = VK_RETURN then OkBtn.Click;
   if Key = VK_ESCAPE then CancelBtn.Click;
 end;
 
-procedure TPrForm.OnClickHistoryPopupMenu(Sender: TObject);
+procedure TPGConverterForm.OnClickHistoryPopupMenu(Sender: TObject);
 begin
   PathEdit.Text := TMenuItem(Sender).Hint;
 end;
 
-procedure TPrForm.OnClearHistoryPopupMenu(Sender: TObject);
+procedure TPGConverterForm.OnClearHistoryPopupMenu(Sender: TObject);
 var
   Registry : TRegistry;
 begin
@@ -309,25 +287,10 @@ begin
   Registry := TRegistry.Create(KEY_ALL_ACCESS);
   try
     Registry.RootKey := HKEY_CURRENT_USER;
-    Registry.DeleteKey(cnstDllKey + '\' + cnstPrHistKey);
+    Registry.DeleteKey(cnstDllKey + '\' + cnstPgHistKey);
   finally
     Registry.Free;
   end;
-end;
-
-procedure TPrForm.SetExternalServer(const Value: String);
-begin
-  FExternalServer := Value;
-end;
-
-procedure TPrForm.SetExternalBase(const Value: String);
-begin
-  FExternalBase := Value;
-end;
-
-procedure TPrForm.SetExternalPort(const Value: String);
-begin
-  FExternalPort := Value;
 end;
 
 end.

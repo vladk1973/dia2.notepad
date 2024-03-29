@@ -44,6 +44,7 @@ type
 
     {$IFNDEF NPPCONNECTIONS}
     procedure FuncPrForm;
+    procedure FuncPgForm;
     procedure FuncInsertParam;
     {$ENDIF}
 
@@ -58,6 +59,11 @@ implementation
 procedure _FuncPrForm; cdecl;
 begin
   Npp.FuncPrForm;
+end;
+
+procedure _FuncPgForm; cdecl;
+begin
+  Npp.FuncPgForm;
 end;
 
 procedure f_M_BUSINESSLOG_PARAM; cdecl;
@@ -141,6 +147,10 @@ begin
   sk.Key := 120; // F9
   AddFuncItem('Пролить скрипт на базу', _FuncPrForm, sk);
 
+{  sk.IsCtrl := false; sk.IsAlt := true; sk.IsShift := false;
+  sk.Key := 120; // F9
+  AddFuncItem('Конвертировать скрипт на PostgreSQL', _FuncPgForm, sk);
+}
   sk.IsCtrl := true; sk.IsAlt := false; sk.IsShift := false;
   sk.Key := 69; // 'E'
   AddFuncItem('Выполнить запрос SQL', _FuncExecSQL, sk);
@@ -621,6 +631,12 @@ procedure TdiaPlugin.FuncPrForm;
 begin
   if not Assigned(FLogForm) then FLogForm := TLogForm.Create(self, 0);
   (FLogForm as TLogForm).DoPrForm;
+end;
+
+procedure TdiaPlugin.FuncPgForm;
+begin
+  if not Assigned(FLogForm) then FLogForm := TLogForm.Create(self, 0);
+  (FLogForm as TLogForm).DoPgConverterForm;
 end;
 
 procedure TdiaPlugin.FuncInsertParam;
